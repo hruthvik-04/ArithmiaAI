@@ -1,0 +1,291 @@
+{% extends "base.html" %}
+
+{% block title %}Patient Registration - ECG Project{% endblock %}
+
+{% block content %}
+<style>
+  .btn-square {
+    width: 36px;
+    height: 36px;
+    border-radius: 4px;
+    background-color: #0d6efd; /* Bootstrap primary color */
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .btn-square:hover {
+    background-color: #0a58ca; /* Darker shade for hover */
+  }
+
+  .error-message {
+    color: #dc3545;
+    font-size: 0.875em;
+    margin-top: 0.25rem;
+    display: none; /* Hidden by default */
+  }
+
+  .form-group {
+    margin-bottom: 1.5rem;
+    position: relative; /* For positioning error messages */
+  }
+
+  .form-control.invalid {
+    border-color: #dc3545;
+  }
+
+  .form-control.valid {
+    border-color: #28a745;
+  }
+
+  /* Make error messages appear next to the field */
+  .error-message.field-error {
+    display: block;
+    position: absolute;
+    bottom: -25px;
+    left: 0;
+  }
+</style>
+<div class="container mt-4">
+  <div class="row justify-content-center">
+    <div class="col-md-8">
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h2 class="text-center mb-0">Patient Registration Form</h2>
+          {% if patient %}
+          <a href="{{ url_for('edit_patient', patient_id=patient.Patient_ID) }}" class="btn-square">
+            <i class="fas fa-edit text-white"></i>
+          </a>
+          {% endif %}
+        </div>
+        <div class="card-body">
+          {% if patient %}
+          <!-- Display registered patient details -->
+          <!-- <div class="alert alert-success" role="alert"> -->
+            <!-- Patient registered successfully! -->
+          </div>
+          <div class="card">
+            <div class="card-header">
+              <h5 class="card-title">Registered Patient Details</h5>
+            </div>
+            <div class="card-body">
+              <h5 class="card-title">Patient ID: {{ patient.Patient_ID }}</h5>
+              <p class="card-text"><strong>Name:</strong> {{ patient.Patient_Name }}</p>
+              <p class="card-text"><strong>Age:</strong> {{ patient.Age }}</p>
+              <p class="card-text"><strong>Gender:</strong> {{ patient.Gender }}</p>
+              <p class="card-text"><strong>Address:</strong> {{ patient.Address }}</p>
+              <p class="card-text"><strong>Email:</strong> {{ patient.Email_ID }}</p>
+              <p class="card-text"><strong>Personal Contact:</strong> {{ patient.Personal_Contact }}</p>
+              <p class="card-text"><strong>Emergency Contact:</strong> {{ patient.Emergency_Contact }}</p>
+              <p class="card-text"><strong>Doctor ID:</strong> {{ patient.Doctor_ID }}</p>
+              <p class="card-text"><strong>Registered on:</strong> {{ patient.Created_At }}</p>
+              <p class="card-text"><strong>Registered by:</strong> {{ patient.Staff_Username }}</p>
+              <a href="{{ url_for('patient_registration') }}" class="btn btn-secondary">Register New Patient</a>
+            </div>
+          </div>
+          {% else %}
+          <form id="patientRegistrationForm" method="post" novalidate>
+            <!-- Patient Information -->
+            <div class="form-group">
+              <label for="Patient_Name" class="form-label">Full Name:</label>
+              <input type="text" id="Patient_Name" name="Patient_Name" class="form-control {% if errors.Patient_Name %}invalid{% endif %}" 
+                     value="{{ form_data.Patient_Name if form_data else '' }}" required>
+              <div class="error-message field-error">
+                {% if errors.Patient_Name %}
+                  {{ errors.Patient_Name }}
+                {% endif %}
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="Age" class="form-label">Age:</label>
+              <input type="number" id="Age" name="Age" class="form-control {% if errors.Age %}invalid{% endif %}" min="1" max="150" 
+                     value="{{ form_data.Age if form_data else '' }}" required>
+              <div class="error-message field-error">
+                {% if errors.Age %}
+                  {{ errors.Age }}
+                {% endif %}
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="Gender" class="form-label">Gender:</label>
+              <select id="Gender" name="Gender" class="form-select {% if errors.Gender %}invalid{% endif %}" required>
+                <option value="" selected disabled>Select Gender</option>
+                <option value="Male" {% if form_data and form_data.Gender == 'Male' %}selected{% endif %}>Male</option>
+                <option value="Female" {% if form_data and form_data.Gender == 'Female' %}selected{% endif %}>Female</option>
+                <option value="Other" {% if form_data and form_data.Gender == 'Other' %}selected{% endif %}>Other</option>
+              </select>
+              <div class="error-message field-error">
+                {% if errors.Gender %}
+                  {{ errors.Gender }}
+                {% endif %}
+              </div>
+            </div>
+
+            <!-- Contact Information -->
+            <div class="form-group">
+              <label for="Address" class="form-label">Address:</label>
+              <textarea id="Address" name="Address" class="form-control {% if errors.Address %}invalid{% endif %}" rows="3" required>{{ form_data.Address if form_data else '' }}</textarea>
+              <div class="error-message field-error">
+                {% if errors.Address %}
+                  {{ errors.Address }}
+                {% endif %}
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="Email_ID" class="form-label">Email:</label>
+              <input type="email" id="Email_ID" name="Email_ID" class="form-control {% if errors.Email_ID %}invalid{% endif %}" 
+                     value="{{ form_data.Email_ID if form_data else '' }}" required>
+              <div class="error-message field-error">
+                {% if errors.Email_ID %}
+                  {{ errors.Email_ID }}
+                {% endif %}
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="Personal_Contact" class="form-label">Personal Contact:</label>
+              <input type="tel" id="Personal_Contact" name="Personal_Contact" class="form-control {% if errors.Personal_Contact %}invalid{% endif %}" 
+                     pattern="[0-9]{10}" title="10-digit phone number" 
+                     value="{{ form_data.Personal_Contact if form_data else '' }}" required>
+              <div class="error-message field-error">
+                {% if errors.Personal_Contact %}
+                  {{ errors.Personal_Contact }}
+                {% endif %}
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="Emergency_Contact" class="form-label">Emergency Contact:</label>
+              <input type="tel" id="Emergency_Contact" name="Emergency_Contact" class="form-control {% if errors.Emergency_Contact %}invalid{% endif %}" 
+                     pattern="[0-9]{10}" title="10-digit phone number" 
+                     value="{{ form_data.Emergency_Contact if form_data else '' }}" required>
+              <div class="error-message field-error">
+                {% if errors.Emergency_Contact %}
+                  {{ errors.Emergency_Contact }}
+                {% endif %}
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="Doctor_ID" class="form-label">Attending Doctor ID (Format: DR-001-2024):</label>
+              <input type="text" id="Doctor_ID" name="Doctor_ID" class="form-control {% if errors.Doctor_ID %}invalid{% endif %}" 
+                     pattern="DR-\d{3}-\d{4}" title="Format: DR-001-2024" 
+                     value="{{ form_data.Doctor_ID if form_data else '' }}" required>
+              <div class="error-message field-error">
+                {% if errors.Doctor_ID %}
+                  {{ errors.Doctor_ID }}
+                {% endif %}
+              </div>
+            </div>
+
+            <div class="d-grid">
+              <button type="submit" class="btn btn-primary">Register Patient</button>
+            </div>
+          </form>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block javascript %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const form = document.getElementById('patientRegistrationForm');
+  if (form) {
+    form.addEventListener('submit', function(event) {
+      let isValid = true;
+      
+      // Reset all error messages and validation states
+      document.querySelectorAll('.form-control').forEach(function(input) {
+        input.classList.remove('valid', 'invalid');
+      });
+      document.querySelectorAll('.error-message').forEach(function(errorDiv) {
+        errorDiv.style.display = 'none';
+      });
+
+      // Validate Patient Name
+      const patientName = document.getElementById('Patient_Name');
+      if (!patientName.value.trim()) {
+        showError(patientName, "Please enter the patient's full name.");
+        isValid = false;
+      }
+
+      // Validate Age
+      const age = document.getElementById('Age');
+      if (!age.value || age.value < 1 || age.value > 150) {
+        showError(age, "Please enter a valid age between 1 and 150.");
+        isValid = false;
+      }
+
+      // Validate Gender
+      const gender = document.getElementById('Gender');
+      if (!gender.value) {
+        showError(gender, "Please select a gender.");
+        isValid = false;
+      }
+
+      // Validate Address
+      const address = document.getElementById('Address');
+      if (!address.value.trim()) {
+        showError(address, "Please enter the patient's address.");
+        isValid = false;
+      }
+
+      // Validate Email
+      const email = document.getElementById('Email_ID');
+      if (!email.validity.valid) {
+        showError(email, "Please enter a valid email address.");
+        isValid = false;
+      }
+
+      // Validate Personal Contact
+      const personalContact = document.getElementById('Personal_Contact');
+      if (!personalContact.value.match(/^\d{10}$/)) {
+        showError(personalContact, "Please enter a valid 10-digit phone number.");
+        isValid = false;
+      }
+
+      // Validate Emergency Contact
+      const emergencyContact = document.getElementById('Emergency_Contact');
+      if (!emergencyContact.value.match(/^\d{10}$/)) {
+        showError(emergencyContact, "Please enter a valid 10-digit phone number.");
+        isValid = false;
+      }
+
+      // Check if personal and emergency contacts are the same
+      if (personalContact.value === emergencyContact.value) {
+        showError(emergencyContact, "Personal contact and emergency contact cannot be the same.");
+        isValid = false;
+      }
+
+      // Validate Doctor ID
+      const doctorID = document.getElementById('Doctor_ID');
+      if (!doctorID.value.match(/^DR-\d{3}-\d{4}$/)) {
+        showError(doctorID, "Please enter a valid doctor ID in the format DR-001-2024.");
+        isValid = false;
+      }
+
+      if (!isValid) {
+        event.preventDefault();
+      }
+    });
+  }
+
+  function showError(input, message) {
+    input.classList.add('invalid');
+    const errorDiv = input.nextElementSibling;
+    if (errorDiv && errorDiv.classList.contains('error-message')) {
+      errorDiv.textContent = message;
+      errorDiv.style.display = 'block';
+    }
+  }
+});
+</script>
+{% endblock %}

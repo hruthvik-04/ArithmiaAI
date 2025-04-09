@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}ECG Analysis System{% endblock %}</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+ 
+
+    <style>
+        body {
+            background-image: url('/static/1.jpeg');
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            position: relative;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: rgba(255, 255, 255, 0.3);
+            z-index: -1;
+        }
+        
+        .login-container {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+            width: 90%;
+            max-width: 400px;
+            margin-top: 10rem;
+            color: #333;
+            margin-bottom: 5rem;
+        }
+        
+        .login-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+        
+        .login-header i {
+            margin-right: 0.5rem;
+            color: #007bff;
+        }
+        
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        
+        .form-control {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        .btn-primary {
+            width: 100%;
+            padding: 0.5rem;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .btn-primary:hover {
+            background-color: #0056b3;
+        }
+        
+        .navbar {
+            margin-bottom: 15px;
+        }
+        
+        .card {
+            border-radius: 10px;
+            overflow: hidden;
+            transition: transform 0.3s ease;
+            background-color: rgba(255, 255, 255, 0.9);
+            color: #333;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+        }
+        
+        .spinner-border {
+            width: 1rem;
+            height: 1rem;
+        }
+        .flash-message {
+            padding: 15px 20px;
+            margin: 20px auto;
+            border-radius: 5px;
+            font-size: 16px;
+            width: 80%;
+            max-width: 600px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        .flash-message.success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .flash-message.error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+        @media (max-width: 768px) {
+            .flash-message {
+                width: 95%;
+                padding: 15px 10px;
+                font-size: 14px;
+                margin: 15px auto;
+            }
+        }
+    </style>
+    
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="{{ url_for('input_form') if current_user.is_authenticated else url_for('staff_login') }}">
+                <i class="fas fa-heartbeat"></i> ECG Analysis
+            </a>
+            
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    {% if current_user.is_authenticated %}
+                        
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('logout') }}">
+                                <i class="fas fa-sign-out-alt"></i> Logout
+                            </a>
+                        </li>
+                    {% else %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('doctor_login') }}">
+                                <i class="fas fa-user-md"></i> Doctor Login
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('staff_login') }}">
+                                <i class="fas fa-id-badge"></i> Staff Login
+                            </a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+  
+
+<div class="container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show" style="max-width: 400px; margin: 0 auto;">
+                    <i class="fas fa-info-circle"></i> {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+    
+    {% block content %}{% endblock %}
+</div>
+    
+<script src="https://cdn.plot.ly/plotly-2.20.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const forms = document.querySelectorAll('form');
+            forms.forEach(form => {
+                form.addEventListener('submit', function(e) {
+                    const submitBtn = this.querySelector('[type="submit"]');
+                    if (submitBtn) {
+                        submitBtn.disabled = true;
+                        const spinner = submitBtn.querySelector('.spinner-border');
+                        if (spinner) {
+                            spinner.classList.remove('d-none');
+                        }
+                    }
+                });
+            });
+        });
+    </script>
+    
+    {% block scripts %}{% endblock %}
+</body>
+</html>

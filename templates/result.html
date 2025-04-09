@@ -1,0 +1,500 @@
+{% extends "base.html" %}
+{% block title %}ECG Analysis Results{% endblock %}
+{% block content %}
+<style>
+    :root {
+        --primary-color: #3498db;
+        --secondary-color: #2c3e50;
+        --white: #ffffff;
+        --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        --danger-color: #e74c3c;
+        --success-color: #2ecc71;
+        --warning-color: #f39c12;
+    }
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    body {
+        background-color: #f5f7fa;
+        color: var(--secondary-color);
+        line-height: 1.6;
+        padding: 20px;
+    }
+    .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 0 15px;
+    }
+    .clearfix::after {
+        content: "";
+        display: table;
+        clear: both;
+    }
+    /* Patient Details Card */
+    .patient-card {
+        background: var(--white);
+        border-radius: 10px;
+        padding: 20px;
+        box-shadow: var(--shadow);
+        width: 300px;
+        float: left;
+        margin-right: 20px;
+        margin-bottom: 20px;
+    }
+    .patient-header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 15px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid #eee;
+    }
+    .patient-header h2 {
+        margin-left: 10px;
+        color: var(--primary-color);
+        font-size: 18px;
+    }
+    .info-group {
+        display: flex;
+        align-items: center;
+        margin-bottom: 12px;
+        gap: 10px;
+    }
+    .info-label {
+        font-weight: 600;
+        color: #7f8c8d;
+        font-size: 14px;
+        min-width: 100px;
+    }
+    .info-value {
+        font-size: 15px;
+        color: var(--secondary-color);
+        flex: 1;
+    }
+    /* Results Section */
+    .results-section {
+        float: left;
+        width: calc(100% - 320px);
+    }
+    .result-card {
+        background-color: white;
+        border-radius: 10px;
+        padding: 20px;
+        box-shadow: var(--shadow);
+        margin-bottom: 20px;
+    }
+    .section-title {
+        color: var(--primary-color);
+        font-size: 18px;
+        margin-bottom: 15px;
+        padding-bottom: 8px;
+        border-bottom: 2px solid var(--primary-color);
+    }
+    .result-display {
+        font-size: 22px;
+        font-weight: bold;
+        text-align: center;
+        padding: 15px;
+        border-radius: 8px;
+        margin: 15px 0;
+        background-color: rgba(46, 204, 113, 0.1);
+        color: #27ae60;
+        border-left: 5px solid #27ae60;
+    }
+    .risk-metrics {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 12px;
+        margin-top: 15px;
+    }
+    .metric-card {
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        padding: 12px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-left: 3px solid var(--primary-color);
+    }
+    .metric-label {
+        font-weight: 600;
+        color: #7f8c8d;
+        font-size: 14px;
+    }
+    .metric-value {
+        font-size: 16px;
+        color: var(--secondary-color);
+        font-weight: 500;
+    }
+    /* ECG Waveform Section */
+    .waveform-card {
+        background-color: white;
+        border-radius: 10px;
+        padding: 20px;
+        box-shadow: var(--shadow);
+        margin-top: 20px;
+        clear: both;
+    }
+    .waveform-container {
+        width: 100%;
+        overflow-x: auto;
+        margin: 15px 0;
+        border: 1px solid #eee;
+        border-radius: 5px;
+        padding: 10px;
+        background-color: #fafafa;
+    }
+    .plot-container {
+        width: 100%;
+        height: 400px;
+    }
+    .waveform-controls {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        margin-top: 15px;
+    }
+    .scroll-container {
+        width: 100%;
+    }
+    .slider {
+        width: 100%;
+        height: 15px;
+        -webkit-appearance: none;
+        appearance: none;
+        background: #ddd;
+        outline: none;
+        border-radius: 10px;
+    }
+    .slider::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 25px;
+        height: 25px;
+        background: var(--primary-color);
+        cursor: pointer;
+        border-radius: 50%;
+    }
+    .zoom-controls {
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+    }
+    .control-button {
+        padding: 8px 15px;
+        background-color: var(--primary-color);
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+        transition: all 0.2s;
+    }
+    .control-button:hover {
+        background-color: #2980b9;
+        transform: translateY(-2px);
+    }
+    /* Classification Probabilities */
+    .classification-section {
+        background: white;
+        border-radius: 10px;
+        padding: 20px;
+        box-shadow: var(--shadow);
+        margin-bottom: 20px;
+    }
+    .classification-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        gap: 15px;
+        margin-top: 15px;
+    }
+    .probability-card {
+        border-left: 4px solid;
+        background: white;
+        border-radius: 8px;
+        padding: 15px;
+        box-shadow: var(--shadow);
+    }
+    .probability-header {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 10px;
+    }
+    .probability-name {
+        font-weight: 600;
+    }
+    .probability-value {
+        font-weight: bold;
+    }
+    .probability-progress {
+        height: 8px;
+        background: #ecf0f1;
+        border-radius: 4px;
+        overflow: hidden;
+        margin-bottom: 5px;
+    }
+    .probability-bar {
+        height: 100%;
+    }
+    .probability-weight {
+        font-size: 12px;
+        color: #7f8c8d;
+    }
+    /* Action Buttons */
+    .button-group {
+        display: flex;
+        justify-content: center;
+        gap: 15px;
+        margin-top: 30px;
+        flex-wrap: wrap;
+    }
+    .button {
+        padding: 10px 20px;
+        border-radius: 5px;
+        text-decoration: none;
+        font-size: 15px;
+        min-width: 200px;
+        text-align: center;
+        font-weight: 500;
+        color: white;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        border: none;
+    }
+    .btn-primary {
+        background-color: var(--primary-color);
+    }
+    .btn-secondary {
+        background-color: #7f8c8d;
+    }
+    .button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    }
+    /* Responsive Design */
+    @media (max-width: 992px) {
+        .patient-card,
+        .results-section {
+            width: 100%;
+            float: none;
+            margin-right: 0;
+        }
+        .risk-metrics {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+    @media (max-width: 768px) {
+        .risk-metrics,
+        .classification-grid {
+            grid-template-columns: 1fr;
+        }
+        .info-label {
+            min-width: 80px;
+            font-size: 13px;
+        }
+        .button-group {
+            flex-direction: column;
+        }
+        .button {
+            width: 100%;
+        }
+    }
+</style>
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<div class="container">
+    <div class="clearfix">
+        <!-- Patient Details Card -->
+        <div class="patient-card">
+            <div class="patient-header">
+                <h2>Patient Information</h2>
+            </div>
+            <div class="info-group">
+                <span class="info-label">Name:</span>
+                <span class="info-value">{{ patient.Patient_Name if patient else "Not Provided" }}</span>
+            </div>
+            <div class="info-group">
+                <span class="info-label">Patient ID:</span>
+                <span class="info-value">{{ patient.Patient_ID if patient else "Not Provided" }}</span>
+            </div>
+            <div class="info-group">
+                <span class="info-label">Age:</span>
+                <span class="info-value">{{ age }} years</span>
+            </div>
+            <div class="info-group">
+                <span class="info-label">Gender:</span>
+                <span class="info-value">{{ patient.Gender if patient else "Not Provided" }}</span>
+            </div>
+            <div class="info-group">
+                <span class="info-label">Systolic BP:</span>
+                <span class="info-value">{{ systolic_bp }} mmHg</span>
+            </div>
+            <div class="info-group">
+                <span class="info-label">Cholesterol:</span>
+                <span class="info-value">{{ cholesterol }} mg/dL</span>
+            </div>
+            <div class="info-group">
+                <span class="info-label">HDL:</span>
+                <span class="info-value">{{ hdl }} mg/dL</span>
+            </div>
+            <div class="info-group">
+                <span class="info-label">Smoker:</span>
+                <span class="info-value">{{ 'Yes' if smoker else 'No' }}</span>
+            </div>
+            <div class="info-group">
+                <span class="info-label">Diabetic:</span>
+                <span class="info-value">{{ 'Yes' if diabetes else 'No' }}</span>
+            </div>
+        </div>
+        <!-- Results Section -->
+        <div class="results-section">
+            <!-- Analysis Results -->
+            <div class="result-card">
+                <h2 class="section-title">Analysis Results</h2>
+                <div class="result-display">
+                    {{ predicted_class }} ({{ "%.2f"|format(confidence) }}% confidence)
+                </div>
+                <div class="risk-metrics">
+                    <div class="metric-card">
+                        <span class="metric-label">Framingham Risk</span>
+                        <span class="metric-value">
+                            {{ framingham_risk|round(2) }}%
+                        </span>
+                    </div>
+                    <div class="metric-card">
+                        <span class="metric-label">GRACE Score</span>
+                        <span class="metric-value">
+                            {{ grace_score|round(2) }}%
+                        </span>
+                    </div>
+                    <div class="metric-card">
+                        <span class="metric-label">Heart Rate</span>
+                        <span class="metric-value">
+                            {{ heart_rate|round(2) }} BPM <small>({{ heart_rate_status }})</small>
+                        </span>
+                    </div>
+                    <div class="metric-card">
+                        <span class="metric-label">QT Interval</span>
+                        <span class="metric-value">
+                            {{ qt_interval|round(3) }} s
+                        </span>
+                    </div>
+                    <div class="metric-card">
+                        <span class="metric-label">PR Interval</span>
+                        <span class="metric-value">
+                            {{ pr_interval|round(3) }} s
+                        </span>
+                    </div>
+                    <div class="metric-card">
+                        <span class="metric-label">ECG Record</span>
+                        <span class="metric-value">
+                            {{ record_num }} <small>({{ all_beats_count }} beats)</small>
+                        </span>
+                    </div>
+                </div>
+            </div>
+            <!-- Classification Probabilities -->
+            <div class="classification-section">
+                <h2 class="section-title">Classification Probabilities</h2>
+                <div class="classification-grid">
+                    {% for class_id, info in class_probabilities.items() %}
+                    <div class="probability-card" style="border-left-color: {{ info.color }};">
+                        <div class="probability-header">
+                            <span class="probability-name" style="color: {{ info.color }};">{{ info.name }}</span>
+                            <span class="probability-value">{{ "%.2f"|format(info.probability) }}%</span>
+                        </div>
+                        <div class="probability-progress">
+                            <div class="probability-bar" style="width: {{ info.probability }}%; background-color: {{ info.color }};"></div>
+                        </div>
+                        <div class="probability-weight">Clinical Weight: {{ info.weight }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- ECG Waveform Section -->
+    <div class="waveform-card">
+        <h2 class="section-title">ECG - {{ all_beats_count }} Beats Detected</h2>
+        <div class="waveform-container">
+            <div id="ecg-plotly-graph" style="width:100%; height:450px;"></div>
+        </div>
+        <div class="waveform-controls">
+            <div class="zoom-controls">
+                <button class="control-button" id="zoom-out-btn">
+                    <i class="fas fa-search-minus"></i> Zoom Out
+                </button>
+                <button class="control-button" id="reset-view-btn">
+                    <i class="fas fa-sync-alt"></i> Reset View
+                </button>
+                <button class="control-button" id="zoom-in-btn">
+                    <i class="fas fa-search-plus"></i> Zoom In
+                </button>
+            </div>
+        </div>
+    </div>
+    <!-- In result.html -->
+<div class="card mt-4">
+    <div class="card-body">
+        <h5 class="card-title">ECG Visualization</h5>
+        <p class="card-text">Click below to view detailed ECG waveform visualization</p>
+        <a href="{{ url_for('ecg_waveform', patient_id=patient.Patient_ID, record_num=record_num) }}" 
+           class="btn btn-primary">
+            View ECG Waveform
+        </a>
+    </div>
+</div>
+    <div class="button-group">
+        <a href="{{ url_for('input_form') }}" class="button btn-secondary">
+            <i class="fas fa-arrow-left"></i> Back to Patient Search
+        </a>
+    </div>
+</div>
+<!-- <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const ecgData = JSON.parse('{{ ecg_plot_json|safe }}');
+        Plotly.newPlot('ecg-plotly-graph', ecgData.data, ecgData.layout, {
+            displayModeBar: true,
+            responsive: true
+        });
+        const plotElement = document.getElementById('ecg-plotly-graph');
+        document.getElementById('zoom-in-btn').addEventListener('click', function() {
+            const currentLayout = plotElement.layout || {};
+            const currentXRange = currentLayout.xaxis?.range || [0, 10];
+            const xMiddle = (currentXRange[0] + currentXRange[1]) / 2;
+            const xSpan = currentXRange[1] - currentXRange[0];
+            const newXRange = [
+                xMiddle - xSpan * 0.4,
+                xMiddle + xSpan * 0.4
+            ];
+            Plotly.relayout(plotElement, {
+                'xaxis.range': newXRange
+            });
+        });
+        document.getElementById('zoom-out-btn').addEventListener('click', function() {
+            const currentLayout = plotElement.layout || {};
+            const currentXRange = currentLayout.xaxis?.range || [0, 10];
+            const xMiddle = (currentXRange[0] + currentXRange[1]) / 2;
+            const xSpan = currentXRange[1] - currentXRange[0];
+            const newXRange = [
+                xMiddle - xSpan * 1.25,
+                xMiddle + xSpan * 1.25
+            ];
+            Plotly.relayout(plotElement, {
+                'xaxis.range': newXRange
+            });
+        });
+        document.getElementById('reset-view-btn').addEventListener('click', function() {
+            Plotly.relayout(plotElement, {
+                'xaxis.autorange': true,
+                'yaxis.autorange': true
+            });
+        });
+    });
+</script> -->
+{% endblock %}
+
+
+

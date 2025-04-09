@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Patient Details - ECG Project{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+  <div class="row justify-content-center">
+    <div class="col-md-8">
+      <div class="card">
+        <div class="card-header">
+          <h2 class="text-center">Edit Patient Details</h2>
+        </div>
+        <div class="card-body">
+          <form method="post" novalidate>
+            <input type="hidden" name="Patient_ID" value="{{ patient.Patient_ID }}">
+            
+            <!-- Patient Information -->
+            <div class="form-group mb-3">
+              <label for="Patient_Name" class="form-label">Full Name:</label>
+              <input type="text" id="Patient_Name" name="Patient_Name" class="form-control" value="{{ patient.Patient_Name }}" required>
+            </div>
+
+            <div class="form-group mb-3">
+              <label for="Age" class="form-label">Age:</label>
+              <input type="number" id="Age" name="Age" class="form-control" min="1" max="150" value="{{ patient.Age }}" required>
+            </div>
+
+            <div class="form-group mb-3">
+              <label for="Gender" class="form-label">Gender:</label>
+              <select id="Gender" name="Gender" class="form-select" required>
+                <option value="" selected disabled>Select Gender</option>
+                <option value="Male" {% if patient.Gender == 'Male' %}selected{% endif %}>Male</option>
+                <option value="Female" {% if patient.Gender == 'Female' %}selected{% endif %}>Female</option>
+                <option value="Other" {% if patient.Gender == 'Other' %}selected{% endif %}>Other</option>
+              </select>
+            </div>
+
+            <!-- Contact Information -->
+            <div class="form-group mb-3">
+              <label for="Address" class="form-label">Address:</label>
+              <textarea id="Address" name="Address" class="form-control" rows="3" required>{{ patient.Address }}</textarea>
+            </div>
+
+            <div class="form-group mb-3">
+              <label for="Email_ID" class="form-label">Email:</label>
+              <input type="email" id="Email_ID" name="Email_ID" class="form-control" value="{{ patient.Email_ID }}">
+            </div>
+
+            <div class="form-group mb-3">
+              <label for="Personal_Contact" class="form-label">Personal Contact:</label>
+              <input type="tel" id="Personal_Contact" name="Personal_Contact" class="form-control" pattern="[0-9]{10}" title="10-digit phone number" value="{{ patient.Personal_Contact }}" required>
+            </div>
+
+            <div class="form-group mb-3">
+              <label for="Emergency_Contact" class="form-label">Emergency Contact:</label>
+              <input type="tel" id="Emergency_Contact" name="Emergency_Contact" class="form-control" pattern="[0-9]{10}" title="10-digit phone number" value="{{ patient.Emergency_Contact }}" required>
+            </div>
+
+            <div class="form-group mb-3">
+              <label for="Doctor_ID" class="form-label">Attending Doctor ID (Format: DR-001-2024):</label>
+              <input type="text" id="Doctor_ID" name="Doctor_ID" class="form-control" pattern="DR-\d{3}-\d{4}" title="Format: DR-001-2024" value="{{ patient.Doctor_ID }}" required>
+            </div>
+
+            <div class="d-grid">
+              <button type="submit" class="btn btn-primary">Update Patient Details</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

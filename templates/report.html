@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% block title %}ECG Analysis Report{% endblock %}
+
+{% block content %}
+<div class="report-container">
+  <div class="header-bar">
+    <h1>AI-Based ECG Analysis System</h1>
+    <div class="subheading">Patient Report</div>
+    <div class="report-date">
+      Generated on: <strong>{{ report_date.strftime('%B %d, %Y') }}</strong>
+    </div>
+  </div>
+
+  <div class="content-area">
+    <!-- Patient Details -->
+    <div class="details-grid">
+      <div class="card-box">
+        <div class="label">Patient ID</div>
+        <div class="value">{{ patient.Patient_ID if patient else "Not Provided" }}</div>
+      </div>
+      <div class="card-box">
+        <div class="label">Name</div>
+        <div class="value">{{ patient.Patient_Name if patient else "Not Provided" }}</div>
+      </div>
+      <div class="card-box">
+        <div class="label">Age</div>
+        <div class="value">{{ age }} years</div>
+      </div>
+      <div class="card-box">
+        <div class="label">Gender</div>
+        <div class="value">{{ gender if gender else "Not Provided" }}</div>
+      </div>
+    </div>
+
+    <!-- AI Prediction Result -->
+    <div class="ai-result-box">
+      <div class="label">AI Result</div>
+      <div class="value">{{ predicted_class }}</div>
+    </div>
+
+    <!-- Vitals and Risk Factors -->
+    <div class="demo-grid">
+      <div class="demo-item">
+        <div class="demo-icon">🩺</div>
+        <div>
+          <div class="demo-label">Systolic BP</div>
+          <div class="demo-value">{{ systolic_bp }} mmHg</div>
+        </div>
+      </div>
+      <div class="demo-item">
+        <div class="demo-icon">🧪</div>
+        <div>
+          <div class="demo-label">Cholesterol</div>
+          <div class="demo-value">{{ cholesterol }} mg/dL</div>
+        </div>
+      </div>
+      <div class="demo-item">
+        <div class="demo-icon">💙</div>
+        <div>
+          <div class="demo-label">HDL</div>
+          <div class="demo-value">{{ hdl }} mg/dL</div>
+        </div>
+      </div>
+      <div class="demo-item">
+        <div class="demo-icon">🚬</div>
+        <div>
+          <div class="demo-label">Smoker</div>
+          <div class="demo-value">{{ 'Yes' if smoker else 'No' }}</div>
+        </div>
+      </div>
+      <div class="demo-item">
+        <div class="demo-icon">🩸</div>
+        <div>
+          <div class="demo-label">Diabetic</div>
+          <div class="demo-value">{{ 'Yes' if diabetes else 'No' }}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Risk Score Section -->
+    <div class="score-container">
+      <div class="score-bar framingham">
+        <div class="score-header">
+          <div class="score-title">Framingham Risk Score</div>
+          <div class="score-value">
+            {% if framingham_risk is not none %}
+              {{ framingham_risk|round(2) }}%
+            {% else %}
+              Not Available
+            {% endif %}
+          </div>
+        </div>
+        <div class="bar-bg">
+          <div class="bar-fill" style="--framingham-score: {{ framingham_risk or 0 }}"></div>
+        </div>
+        <div class="risk-label">10-year CVD Risk</div>
+      </div>
+
+      <div class="score-bar grace">
+        <div class="score-header">
+          <div class="score-title">GRACE Score</div>
+          <div class="score-value">
+            {% if grace_score is not none %}
+              {{ grace_score|round(2) }}%
+            {% else %}
+              Not Available
+            {% endif %}
+          </div>
+        </div>
+        <div class="bar-bg">
+          <div class="bar-fill" style="--grace-score: {{ grace_score_percentage or 0 }}"></div>
+        </div>
+        <div class="risk-label">ACS Mortality Risk</div>
+      </div>
+    </div>
+
+    <!-- ECG Image -->
+    <div class="ecg-waveform">
+      {% if ecg_filename %}
+        <img src="{{ url_for('static', filename=ecg_filename) }}"
+             alt="ECG Waveform"
+             style="max-height: 100%; max-width: 100%;">
+      {% else %}
+        ECG waveform display area (No waveform available)
+      {% endif %}
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      © {{ current_year }} Cardiac Care Analytics | Confidential Health Report
+    </div>
+  </div>
+</div>
+
+<!-- Floating Download Button -->
+<a href="{{ url_for('download_report', filename=pdf_filename) }}" class="floating-download-btn">
+  📄 Download Report
+</a>
+
+<style>
+  .floating-download-btn {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    background-color: #1e3a8a;
+    color: white;
+    padding: 12px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    z-index: 1000;
+    transition: background 0.2s ease;
+  }
+
+  .floating-download-btn:hover {
+    background-color: #1d4ed8;
+  }
+</style>
+{% endblock %}

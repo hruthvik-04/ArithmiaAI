@@ -1,0 +1,33 @@
+body {
+    background-color: #f8f9fa;
+}
+.login-container {
+    background-color: white;
+    padding: 2rem;
+    border-radius: 10px;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+    width: 90%;
+    max-width: 400px;
+    margin-top: 10rem; /* Increased margin to push form down */
+    color: #333;
+    margin-bottom: 5rem; /* Add margin at the bottom */
+}
+.navbar {
+    margin-bottom: 30px;
+}
+
+.card {
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    border: none;
+}
+
+.img-fluid {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+}
+
+.btn-lg {
+    padding: 0.75rem 1.5rem;
+    font-size: 1.1rem;
+}

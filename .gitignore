@@ -1,0 +1,15 @@
+app.py
+app1.py
+app3.py
+app4.py
+ecg_analysis.py
+flask_app.py
+from flask import Flask, render_template.py
+Ploty.js
+venv/
+templates/_ecg_plot.html
+templates/dashboard copy.html
+templates/dashboard.html
+templates/manual_analysis.html
+templates/result plotlyrun.html
+templates/RESULT1.html
