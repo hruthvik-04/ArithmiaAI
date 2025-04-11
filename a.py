@@ -971,6 +971,45 @@ def automatic_analysis(patient_id):
                 if not (50 <= systolic_bp <= 250):
                     raise ValueError("Invalid systolic BP")
                 print("Before Loading ECG Sample")
+
+
+                insert_cursor = mysql.connection.cursor()
+                try:
+                    insert_query = """
+                        INSERT INTO input 
+                        (Patient_ID, Smoker, Diabetic, Cholesterol, HDL, 
+                         Blood_Pressure, Generated_AT, Doctor_ID)
+                        VALUES (%s, %s, %s, %s, %s, %s, NOW(), %s)
+                    """
+                    insert_cursor.execute(insert_query, (
+                        patient_id, 
+                        smoker, 
+                        diabetes, 
+                        cholesterol, 
+                        hdl, 
+                        systolic_bp,
+                        patient.get('Doctor_ID')
+                    ))
+                    mysql.connection.commit()
+                    
+                    # Verify insertion
+                    insert_cursor.execute("""
+                        SELECT * FROM input 
+                        WHERE Patient_ID = %s
+                        ORDER BY Record_ID DESC
+                        LIMIT 1
+                    """, (patient_id,))
+                    latest_record = insert_cursor.fetchone()
+                    
+                    if not latest_record:
+                        raise Exception("Insert verification failed - no record found")
+
+                except Exception as e:
+                    mysql.connection.rollback()
+                    flash(f"Failed to save medical data: {str(e)}", "danger")
+                    return redirect(url_for("automatic_analysis", patient_id=patient_id))
+                finally:
+                    insert_cursor.close()
                 # Load and validate ECG signal
                 #print("Return of Load Sample: ",load_ecg_sample(record_num))
                 ecg_signal, fs, _, _ = load_ecg_sample(record_num)
