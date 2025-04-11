@@ -4,123 +4,222 @@
 {% block content %}
 <style>
     :root {
-        --primary-color: #3498db;
+        --primary-color: #0d6efd;
         --secondary-color: #2c3e50;
         --white: #ffffff;
-        --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    }
-
-    * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        --shadow: 0 4px 8px rgba(0,0,0,0.1);
     }
 
     body {
-        background-color: #f5f7fa;
-        color: var(--secondary-color);
-        line-height: 1.6;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background-color: #f8f9fa;
     }
 
-    .patient-details {
-        border: 1px solid #dee2e6;
-        border-radius: 0.25rem;
-        padding: 1rem;
-        margin-bottom: 1rem;
+    .card {
+        border-radius: 10px;
+        box-shadow: var(--shadow);
+        margin-bottom: 20px;
+    }
+
+    .card-header {
+        background-color: var(--primary-color);
+        color: white;
+        border-radius: 10px 10px 0 0 !important;
     }
 
     #ecg-plot {
         height: 400px;
         width: 100%;
     }
+
+    .result-card {
+        background-color: #ffffff;
+        border-left: 5px solid var(--primary-color);
+    }
+
+    .priority-indicator {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 5px;
+    }
+    
+    /* Loading overlay styles */
+    .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(51, 51, 51, 0.9);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+        color: white;
+    }
+    
+    .loading-spinner {
+        border: 5px solid #f3f3f3;
+        border-top: 5px solid #3498db;
+        border-radius: 50%;
+        width: 50px;
+        height: 50px;
+        animation: spin 1s linear infinite;
+        margin-bottom: 20px;
+    }
+    
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    
+    .loading-steps {
+        text-align: center;
+        margin-top: 20px;
+        max-width: 300px;
+    }
+    
+    .loading-step {
+        margin: 10px 0;
+        opacity: 0.5;
+        transition: opacity 0.3s;
+    }
+    
+    .loading-step.active {
+        opacity: 1;
+        font-weight: bold;
+    }
 </style>
-<div class="row justify-content-center">
-    <div class="col-md-8">
-        <div class="card">
-            <div class="card-header bg-white">
-                <h3 class="mb-0"><i class="fas fa-microchip"></i> AI ECG Analysis</h3>
-            </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-md-5">
-                        <div class="patient-details mb-4">
-                            <h5>Patient Details</h5>
-                            <hr>
-                            <p><strong>Patient ID:</strong> {{ patient.Patient_ID }}</p>
-                            <p><strong>Name:</strong> {{ patient.Patient_Name }}</p>
-                            <p><strong>Age:</strong> {{ patient.Age }}</p>
-                            <p><strong>Gender:</strong> {{ patient.Gender }}</p>
+
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="mb-0"><i class="fas fa-microchip"></i> AI ECG Analysis</h3>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-5">
+                            <div class="patient-details mb-4">
+                                <h5>Patient Details</h5>
+                                <hr>
+                                <p><strong>Patient ID:</strong> {{ patient.Patient_ID }}</p>
+                                <p><strong>Name:</strong> {{ patient.Patient_Name }}</p>
+                                <p><strong>Age:</strong> {{ patient.Age }}</p>
+                                <p><strong>Gender:</strong> {{ patient.Gender }}</p>
+                                <p><strong>Contact Info:</strong> {{ patient.Personal_Contact }}</p>
+                                <p><strong>Doctor ID:</strong> {{ patient.Doctor_ID }}</p>
+                                <p><strong>Date:</strong> {{ patient.Created_At.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%d %B %Y") }}</p>
+                            </div>
                             
-                            <p><strong>Contact Info:</strong> {{ patient.Personal_Contact }}</p>
-                            
-                            <p><strong>Doctor ID:</strong> {{ patient.Doctor_ID }}</p>
-                            <p><strong>Date:</strong> {{ patient.Created_At.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%d %B %Y") }}</p>
+                            <div class="card result-card">
+                                <div class="card-body">
+                                    <h5 class="card-title">Analysis Results</h5>
+                                    <div id="resultsContainer">
+                                        {% if ecg_results %}
+                                            <div class="mb-3">
+                                                <h6>Prediction:</h6>
+                                                <p class="fs-5">
+                                                    <span class="priority-indicator" style="background-color: {{ ecg_results.color }};"></span>
+                                                    {{ ecg_results.prediction }}
+                                                </p>
+                                            </div>
+                                            <div class="mb-3">
+                                                <h6>Confidence:</h6>
+                                                <div class="progress">
+                                                    <div class="progress-bar" role="progressbar" style="width: {{ ecg_results.confidence }}%" 
+                                                        aria-valuenow="{{ ecg_results.confidence }}" aria-valuemin="0" aria-valuemax="100">
+                                                        {{ ecg_results.confidence|round(1) }}%
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="mb-3">
+                                                <h6>Priority:</h6>
+                                                <p>{{ ecg_results.weight }} ({{ ecg_results.class_name }})</p>
+                                            </div>
+                                            <div class="mb-3">
+                                                <h6>Heart Rate:</h6>
+                                                <p>{{ ecg_results.heart_rate|round(1) }} BPM</p>
+                                            </div>
+                                        {% else %}
+                                            <p class="text-muted">No analysis performed yet. Select a record and click "Analyze ECG".</p>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                         
-                    </div>
-                    <div class="col-md-7">
-                        <form method="POST">
-                            <div class="mb-3">
-                                <label class="form-label">Select ECG Record</label>
-                                <select name="record_num" class="form-select" required>
-                                    <option value="">Select a record...</option>
-                                    {% for record in ['100', '101', '102', '103', '104', '105', '106', '107'] %}
-                                    <option value="{{ record }}">Record {{ record }}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            
-                            <h5 class="mt-4">Patient Information</h5>
-                            <hr>
-                            
-                            <div class="row g-3">
-                                <div class="col-md-6">
-                                    <label class="form-label">Age (years)</label>
-                                    <input type="number" class="form-control" name="age" min="18" max="120" value="{{ patient.Age }}" required>
+                        <div class="col-md-7">
+                            <form method="POST">
+                                <div class="mb-3">
+                                    <label class="form-label">Select ECG Record</label>
+                                    <select name="record_num" class="form-select" required>
+                                        <option value="">Select a record...</option>
+                                        {% for i in range(100, 235) %}
+                                            {% if i not in [102, 104, 107, 217] %}
+                                                <option value="{{ i }}" {% if request.form.get('record_num') == i|string %}selected{% endif %}>
+                                                    Record {{ i }}
+                                                </option>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </select>
                                 </div>
-                                <div class="col-md-6">
-                                    <label class="form-label">Systolic BP (mmHg)</label>
-                                    <input type="number" class="form-control" name="systolic_bp" min="50" max="250" required>
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label">Cholesterol (mg/dL)</label>
-                                    <input type="number" class="form-control" name="cholesterol" min="50" max="500" required>
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label">HDL (mg/dL)</label>
-                                    <input type="number" class="form-control" name="hdl" min="20" max="100" required>
-                                </div>
-                                <div class="col-md-6">
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" name="smoker">
-                                        <label class="form-check-label">
-                                            <i class="fas fa-smoking"></i> Current Smoker
-                                        </label>
+                                
+                                <h5 class="mt-4">Patient Information</h5>
+                                <hr>
+                                
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label">Age (years)</label>
+                                        <input type="number" class="form-control" name="age" min="18" max="120" value="{{ patient.Age }}" required>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Systolic BP (mmHg)</label>
+                                        <input type="number" class="form-control" name="systolic_bp" min="50" max="250" required>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Cholesterol (mg/dL)</label>
+                                        <input type="number" class="form-control" name="cholesterol" min="50" max="500" required>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">HDL (mg/dL)</label>
+                                        <input type="number" class="form-control" name="hdl" min="20" max="100" required>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="smoker" {% if request.form.get('smoker') %}checked{% endif %}>
+                                            <label class="form-check-label">
+                                                <i class="fas fa-smoking"></i> Current Smoker
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="diabetes" {% if request.form.get('diabetes') %}checked{% endif %}>
+                                            <label class="form-check-label">
+                                                <i class="fas fa-diabetes"></i> Diabetes Diagnosis
+                                            </label>
+                                        </div>
                                     </div>
                                 </div>
-                                <div class="col-md-6">
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" name="diabetes">
-                                        <label class="form-check-label">
-                                            <i class="fas fa-diabetes"></i> Diabetes Diagnosis
-                                        </label>
-                                    </div>
-                                </div>
-                            </div>
-                            <button type="submit" class="btn btn-primary w-100 mt-4">
-                                <i class="fas fa-arrow-right"></i> Analyze ECG
-                            </button>
-                        </form>
+                                <button type="submit" class="btn btn-primary w-100 mt-4">
+                                    <i class="fas fa-arrow-right"></i> Analyze ECG
+                                </button>
+                            </form>
 
-                        <!-- ECG Waveform Display -->
-                        {% if ecg_graph_json %}
-                        <div class="mt-4">
-                            <h5>ECG Waveform</h5>
-                            <hr>
-                            <div id="ecg-plot"></div>
+                            <!-- ECG Waveform Display -->
+                            {% if ecg_graph_json %}
+                            <div class="mt-4">
+                                <h5>ECG Waveform</h5>
+                                <hr>
+                                <div id="ecg-plot"></div>
+                            </div>
+                            {% endif %}
                         </div>
-                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -128,22 +227,60 @@
     </div>
 </div>
 
+<!-- Loading Overlay -->
+<div id="loadingModal" class="loading-overlay" style="display: none;">
+    <div class="loading-spinner"></div>
+    <h3>Analyzing ECG Data...</h3>
+    <div class="loading-steps">
+        <div id="step1" class="loading-step">Fetching ECG Data</div>
+        <div id="step2" class="loading-step">Preprocessing Signal</div>
+        <div id="step3" class="loading-step">Detecting Heartbeats</div>
+        <div id="step4" class="loading-step">Running Analysis</div>
+        <div id="step5" class="loading-step">Generating Report</div>
+    </div>
+</div>
+
 <script src="https://cdn.plot.ly/plotly-2.20.0.min.js"></script>
-<!-- <script>
-document.addEventListener('DOMContentLoaded', function() {
-    {% if ecg_graph_json %}
-    try {
-        var graph = {{ ecg_graph_json|safe }};
-        console.log("Graph Data:", graph);
+<script>
+    // Show loading overlay when form is submitted
+    document.querySelector('form').addEventListener('submit', function() {
+        const loadingModal = document.getElementById('loadingModal');
+        loadingModal.style.display = 'flex';
         
-        Plotly.newPlot('ecg-plot', graph.data, graph.layout, {
-            responsive: true,
-            displayModeBar: true
+        // Animate steps
+        const steps = ['step1', 'step2', 'step3', 'step4', 'step5'];
+        
+        steps.forEach((stepId, index) => {
+            setTimeout(() => {
+                // Reset all steps
+                steps.forEach(id => {
+                    document.getElementById(id).classList.remove('active');
+                });
+                
+                // Activate current step
+                document.getElementById(stepId).classList.add('active');
+                
+                // If last step, keep it active until response comes
+                if (index === steps.length - 1) {
+                    document.getElementById(stepId).textContent = 'Almost done...';
+                }
+            }, index * 800);
         });
-    } catch (error) {
-        console.error("Error rendering Plotly graph:", error);
-    }
-    {% endif %}
-});
-</script> -->
+    });
+
+    // Plot ECG graph if available
+    document.addEventListener('DOMContentLoaded', function() {
+        {% if ecg_graph_json %}
+        try {
+            var graph = {{ ecg_graph_json|safe }};
+            Plotly.newPlot('ecg-plot', graph.data, graph.layout, {
+                responsive: true,
+                displayModeBar: true
+            });
+        } catch (error) {
+            console.error("Error rendering Plotly graph:", error);
+        }
+        {% endif %}
+    });
+</script>
 {% endblock %}

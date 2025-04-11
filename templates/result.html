@@ -415,26 +415,7 @@
             </div>
         </div>
     </div>
-    <!-- ECG Waveform Section -->
-    <div class="waveform-card">
-        <h2 class="section-title">ECG - {{ all_beats_count }} Beats Detected</h2>
-        <div class="waveform-container">
-            <div id="ecg-plotly-graph" style="width:100%; height:450px;"></div>
-        </div>
-        <div class="waveform-controls">
-            <div class="zoom-controls">
-                <button class="control-button" id="zoom-out-btn">
-                    <i class="fas fa-search-minus"></i> Zoom Out
-                </button>
-                <button class="control-button" id="reset-view-btn">
-                    <i class="fas fa-sync-alt"></i> Reset View
-                </button>
-                <button class="control-button" id="zoom-in-btn">
-                    <i class="fas fa-search-plus"></i> Zoom In
-                </button>
-            </div>
-        </div>
-    </div>
+   
     <!-- In result.html -->
 <div class="card mt-4">
     <div class="card-body">
@@ -445,6 +426,11 @@
             View ECG Waveform
         </a>
     </div>
+</div>
+<div class="button-group">
+    <a href="{{ url_for('generate_report', patient_id=patient['Patient_ID']) }}" class="button btn-primary">
+        <i class="fas fa-file-alt"></i> Generate Report
+    </a>
 </div>
     <div class="button-group">
         <a href="{{ url_for('input_form') }}" class="button btn-secondary">
