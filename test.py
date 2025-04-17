@@ -896,39 +896,6 @@ def handle_model_output(predictions):
         print(f"Error processing output: {str(e)}")
         return None
     
-def generate_ecg_waveform_data(record_num, samples_to_show, patient_id):
-    try:
-        ecg_signal, fs, _, _ = load_ecg_sample(record_num)
-        if ecg_signal is None or fs is None:
-            raise ValueError("Failed to load ECG record")
-        
-        # Pretend we do filtering etc.
-        ecg_filtered = ecg_signal[:samples_to_show]  # Dummy logic
-        safe_plot_json = "..."  # Assume it's generated somewhere
-        
-        result = {
-            "plot_json": safe_plot_json,
-            "record_num": record_num,
-            "patient_id": patient_id,
-            "samples_to_show": samples_to_show,
-            "total_samples": len(ecg_filtered)
-        }
-        return result
-    except Exception as e:
-        print(f"Exception in generate_ecg_waveform_data: {e}")
-        raise
-
-def ecg_waveform(patient_id):
-    record_num = request.args.get('record_num', '100')
-    samples_to_show = request.args.get('samples', default=2000, type=int)
-    try:
-        data = generate_ecg_waveform_data(record_num, samples_to_show, patient_id)
-        return data # Flask will return this as a JSON if you're using jsonify
-    except Exception as e:
-        flash(f"Error generating waveform: {str(e)}", "danger")
-        return redirect(url_for('automatic_analysis', patient_id=patient_id))
-
-
 @app.route("/automatic_analysis/<patient_id>", methods=["GET", "POST"])
 @login_required
 def automatic_analysis(patient_id):
@@ -1098,14 +1065,14 @@ def automatic_analysis(patient_id):
                 # Calculate risk scores
                 framingham_risk = compute_framingham_risk(age, cholesterol, hdl, systolic_bp, smoker, diabetes)
                 grace_score = compute_grace_score(age, systolic_bp, heart_rate)
-                # print("ECG Normalized: ",ecg_normalized)
+                print("ECG Normalized: ",ecg_normalized)
                 # Generate ECG visualization
-                # print("Generate Plot: ",generate_ecg_plot(
-                #     ecg_normalized,
-                #     r_peaks,
-                #     f"ECG - Predicted: {pred_class}",
-                #     pred_class_id
-                # ))
+                print("Generate Plot: ",generate_ecg_plot(
+                    ecg_normalized,
+                    r_peaks,
+                    f"ECG - Predicted: {pred_class}",
+                    pred_class_id
+                ))
                 # ecg_plot_filename, ecg_plot_json = generate_ecg_plot(
                 #     ecg_signal=ecg_filtered, # Plot the filtered (but not normalized) signal for better visual scale
                 #     r_peaks=r_peaks,
@@ -1136,8 +1103,7 @@ def automatic_analysis(patient_id):
                 #     #ecg_filename=ecg_plot_filename  # This is now a placeholder filename
                 # )
 
-                waveform_data=ecg_waveform(patient_id=patient_id)
-                print("Waveform Data: ",waveform_data)
+                
                 result_data = {
                     'patient': patient,
                     'predicted_class': pred_class,
@@ -1162,11 +1128,11 @@ def automatic_analysis(patient_id):
                     'class_probabilities': class_probabilities,
                     'record_num': record_num,
                     'all_beats_count': len(r_peaks) if r_peaks is not None else 0,
-                    'doctor_name': patient.get('Doctor_Name', 'Not Assigned')}
-                    # 'samples_to_show': waveform_data.samples_to_show}
+                    'doctor_name': patient.get('Doctor_Name', 'Not Assigned')
+}
                 print("Result Data: ",result_data)
 
-                return render_template("result.html", **result_data)
+                return render_template("resulttest.html", **result_data)
 
             except Exception as e:
                 flash(f"Analysis error: {str(e)}", "danger")
@@ -1179,7 +1145,160 @@ def automatic_analysis(patient_id):
         return redirect(url_for("input_form"))
 
 
+@app.route('/ecg_waveform/<patient_id>', methods=['GET'])
+def ecg_waveform(patient_id):
+    record_num = request.args.get('record_num', '100')
+    samples_to_show = request.args.get('samples', default=2000, type=int)
+    
+    try:
+        # First get patient data
+        cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
+        cursor.execute("""
+            SELECT p.*, d.Username AS Doctor_Name 
+            FROM patient_profile p
+            LEFT JOIN doctor d ON p.Doctor_ID = d.Doctor_ID
+            WHERE p.Patient_ID = %s
+        """, (patient_id,))
+        patient = cursor.fetchone()
+        cursor.close()
 
+        if not patient:
+            flash("Patient not found", "danger")
+            return redirect(url_for('automatic_analysis', patient_id=patient_id))
+
+        # Load and process ECG data
+        ecg_signal, fs, _, _ = load_ecg_sample(record_num)
+        if ecg_signal is None or fs is None:
+            flash("Failed to load ECG record", "danger")
+            return redirect(url_for('automatic_analysis', patient_id=patient_id))
+        
+        ecg_signal = np.array(ecg_signal)
+        ecg_filtered = butterworth_filter(ecg_signal, fs=fs)
+        if ecg_filtered is None:
+            flash("Failed to filter ECG signal", "danger")
+            return redirect(url_for('automatic_analysis', patient_id=patient_id))
+        
+        r_peaks = detect_r_peaks(ecg_filtered, fs)
+        r_peaks = np.array(r_peaks) if r_peaks is not None else np.array([])
+        
+        print(f"Generating ECG plot for patient {patient_id}...")
+        plot_figure, plot_json = generate_ecg_plot(
+            ecg_signal=ecg_filtered,
+            r_peaks=r_peaks,
+            title=f"ECG Waveform - {patient['Patient_Name']}",
+            pred_class_id=None,
+            fs=fs,
+            samples_to_show=samples_to_show
+        )
+        
+        if not plot_json:
+            flash("Failed to generate ECG plot data", "danger")
+            return redirect(url_for('automatic_analysis', patient_id=patient_id))
+        
+        try:
+            safe_plot_json = json.dumps(plot_json) if not isinstance(plot_json, str) else plot_json
+            json.loads(safe_plot_json)  # Validate
+        except json.JSONDecodeError as e:
+            flash("Invalid JSON data generated for plot", "danger")
+            print(f"JSON decode error: {str(e)}")
+            return redirect(url_for('automatic_analysis', patient_id=patient_id))
+        
+        visible_beats = np.sum(r_peaks < samples_to_show) if len(r_peaks) > 0 else 0
+        
+        return render_template('ecg_waveform.html', 
+                            plot_json=safe_plot_json,
+                            all_beats_count=len(r_peaks),
+                            visible_beats_count=visible_beats,
+                            record_num=record_num,
+                            patient=patient,  # Pass patient data to template
+                            patient_id=patient_id,
+                            samples_to_show=samples_to_show,
+                            total_samples=len(ecg_filtered))
+    
+    except Exception as e:
+        flash(f"Error generating waveform: {str(e)}", "danger")
+        print(f"Error traceback: {traceback.format_exc()}")
+        return redirect(url_for('automatic_analysis', patient_id=patient_id))
+    
+# @app.route('/ecg_waveform/<patient_id>', methods=['GET'])
+# def ecg_waveform(patient_id):
+#     record_num = request.args.get('record_num', '100')
+#     samples_to_show = request.args.get('samples', default=2000, type=int)
+    
+#     try:
+#         # Load and process ECG data
+#         ecg_signal, fs, _, _ = load_ecg_sample(record_num)
+#         if ecg_signal is None or fs is None:
+#             flash("Failed to load ECG record", "danger")
+#             return redirect(url_for('automatic_analysis', patient_id=patient_id))
+        
+#         # Convert to numpy array if not already
+#         ecg_signal = np.array(ecg_signal)
+        
+#         # Apply Butterworth filter
+#         ecg_filtered = butterworth_filter(ecg_signal, fs=fs)
+#         if ecg_filtered is None:
+#             flash("Failed to filter ECG signal", "danger")
+#             return redirect(url_for('automatic_analysis', patient_id=patient_id))
+        
+#         # Detect R-peaks
+#         r_peaks = detect_r_peaks(ecg_filtered, fs)
+#         r_peaks = np.array(r_peaks) if r_peaks is not None else np.array([])
+        
+#         # Generate plot data with debug checks
+#         # Debug checks (remove after verification)
+#         print(f"Signal length: {len(ecg_signal)} samples")
+#         print(f"First 5 values: {ecg_signal[:5]}")
+#         # print(f"Time axis range: {time_axis[0]:.2f}s to {time_axis[-1]:.2f}s")
+#         if r_peaks is not None:
+#             print(f"First 5 R-peaks: {r_peaks[:5]} samples")
+
+
+        
+#         print("Generating ECG plot...")
+#         plot_figure, plot_json = generate_ecg_plot(
+#             ecg_signal=ecg_filtered,
+#             r_peaks=r_peaks,
+#             title=f"ECG Waveform - {len(r_peaks)} Beats Detected",
+#             pred_class_id=None,
+#             fs=fs,
+#             samples_to_show=samples_to_show
+#         )
+        
+#         # Validate the plot JSON
+#         if not plot_json:
+#             flash("Failed to generate ECG plot data", "danger")
+#             return redirect(url_for('automatic_analysis', patient_id=patient_id))
+        
+#         try:
+#             # Ensure proper JSON encoding
+#             if isinstance(plot_json, str):
+#                 json.loads(plot_json)  # Validate it's proper JSON
+#                 safe_plot_json = plot_json
+#             else:
+#                 safe_plot_json = json.dumps(plot_json)
+#         except json.JSONDecodeError as e:
+#             flash("Invalid JSON data generated for plot", "danger")
+#             print(f"JSON decode error: {str(e)}")
+#             return redirect(url_for('automatic_analysis', patient_id=patient_id))
+        
+#         # Calculate visible beats
+#         visible_beats = np.sum(r_peaks < samples_to_show) if len(r_peaks) > 0 else 0
+        
+#         print("Rendering template with ECG data...")
+#         return render_template('ecg_waveform.html', 
+#                             plot_json=safe_plot_json,
+#                             all_beats_count=len(r_peaks),
+#                             visible_beats_count=visible_beats,
+#                             record_num=record_num,
+#                             patient_id=patient_id,
+#                             samples_to_show=samples_to_show,
+#                             total_samples=len(ecg_filtered))
+    
+#     except Exception as e:
+#         flash(f"Error generating waveform: {str(e)}", "danger")
+#         print(f"Error traceback: {traceback.format_exc()}")
+#         return redirect(url_for('automatic_analysis', patient_id=patient_id))
 
 @app.route('/generate_report/<patient_id>')
 @login_required
@@ -1188,11 +1307,17 @@ def generate_report(patient_id):
         # Debug print all received parameters
         print(f"Received parameters: {request.args}")
         
-        # Get patient data
+        # Get patient data with enhanced doctor name handling
         cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
         try:
             cursor.execute("""
-                SELECT p.*, d.Username AS Doctor_Name 
+                SELECT p.*, 
+                       CASE 
+                           WHEN p.Doctor_ID IS NULL THEN 'Not assigned'
+                           WHEN d.Username IS NULL THEN 'Doctor not found'
+                           ELSE CONCAT('Dr. ', d.Username)
+                       END AS Doctor_Display_Name,
+                       d.Username AS Doctor_Username
                 FROM patient_profile p
                 LEFT JOIN doctor d ON p.Doctor_ID = d.Doctor_ID
                 WHERE p.Patient_ID = %s
@@ -1203,36 +1328,33 @@ def generate_report(patient_id):
                 flash("Patient not found", "danger")
                 return redirect(url_for("input_form"))
                 
-        except Exception as e:  # Fixed syntax here
+            # Debug output for doctor info
+            print(f"Doctor info - ID: {patient.get('Doctor_ID')}, Username: {patient.get('Doctor_Username')}, Display: {patient.get('Doctor_Display_Name')}")
+                
+        except Exception as e:
             flash(f"Database error: {str(e)}", "danger")
             return redirect(url_for("input_form"))
         finally:
             cursor.close()
 
-        # Get all parameters from request - no defaults for critical fields
+        # Get all parameters from request with defaults
         data = {
             'record_num': request.args.get('record_num', ''),
-            'predicted_class': request.args.get('predicted_class', ''),
+            'predicted_class': request.args.get('predicted_class', 'N/A'),
             'confidence': float(request.args.get('confidence', 0)),
             'heart_rate': float(request.args.get('heart_rate', 0)),
             'qt_interval': float(request.args.get('qt_interval', 0)),
             'pr_interval': float(request.args.get('pr_interval', 0)),
             'framingham_risk': float(request.args.get('framingham_risk', 0)),
             'grace_score': float(request.args.get('grace_score', 0)),
-            'systolic_bp': float(request.args.get('systolic_bp', 0)),
-            'cholesterol': float(request.args.get('cholesterol', 0)),
-            'hdl': float(request.args.get('hdl', 0)),
+            'systolic_bp': float(request.args.get('systolic_bp', 120)),
+            'cholesterol': float(request.args.get('cholesterol', 200)),
+            'hdl': float(request.args.get('hdl', 50)),
             'smoker': request.args.get('smoker', '0') == '1',
             'diabetes': request.args.get('diabetes', '0') == '1',
             'all_beats_count': int(request.args.get('all_beats_count', 0)),
-            'class_probabilities': {},
-            'ecg_image': request.args.get('ecg_image', '')  # Get pre-generated ECG image
+            'class_probabilities': {}
         }
-
-        # Validate required fields
-        if not data['predicted_class']:
-            flash("Missing required analysis data", "danger")
-            return redirect(url_for('automatic_analysis', patient_id=patient_id))
 
         # Process class probabilities
         try:
@@ -1240,17 +1362,43 @@ def generate_report(patient_id):
         except json.JSONDecodeError:
             data['class_probabilities'] = {}
 
-        # Prepare report context
+        # Generate ECG plot if record number is provided
+        ecg_image = None
+        if data['record_num']:
+            try:
+                ecg_signal, fs, _, _ = load_ecg_sample(data['record_num'])
+                if ecg_signal is not None and fs is not None:
+                    ecg_filtered = butterworth_filter(ecg_signal, fs=fs)
+                    r_peaks = detect_r_peaks(ecg_filtered, fs)
+                    
+                    # Generate Plotly figure
+                    fig = generate_ecg_plot(
+                        ecg_signal=ecg_filtered,
+                        r_peaks=r_peaks,
+                        title=f"ECG Analysis - {patient['Patient_Name']}",
+                        pred_class_id=next((k for k, v in CLASSES.items() if v['name'] == data['predicted_class']), None),
+                        fs=fs
+                    )
+                    
+                    # Convert Plotly figure to static image
+                    img_bytes = fig.to_image(format='png', width=1000, height=500)
+                    ecg_image = base64.b64encode(img_bytes).decode('utf-8')
+                    
+            except Exception as e:
+                app.logger.error(f"ECG plot generation error: {str(e)}")
+                flash("Error generating ECG plot", "warning")
+
+        # Prepare report context with proper doctor name handling
         report_date = datetime.now()
         context = {
             'patient': patient,
-            'doctor_name': patient.get('Doctor_Name', 'Not assigned'),
+            'doctor_name': patient.get('Doctor_Display_Name', 'Not assigned'),  # Use the pre-formatted display name
             'age': patient.get('Age', 'N/A'),
             'gender': patient.get('Gender', 'N/A'),
             'report_date': report_date,
             'current_year': report_date.year,
             'report_id': f"ECG-{report_date.strftime('%Y%m%d')}-{patient_id}",
-            'ecg_image': data['ecg_image'],  # Use the passed ECG image
+            'ecg_image': ecg_image,
             'classes': CLASSES,
             **data  # Unpack all analysis data
         }
@@ -1260,20 +1408,11 @@ def generate_report(patient_id):
 
         # Check if download was requested
         if request.args.get('download') == 'pdf':
-            # Render template with actual data
             html = render_template('report.html', **context)
-            
-            # Create PDF with proper encoding
             pdf = BytesIO()
-            pisa_status = pisa.CreatePDF(
-                html,
-                dest=pdf,
-                encoding='UTF-8',
-                link_callback=lambda uri, _: uri  # Handle relative paths
-            )
+            pisa_status = pisa.CreatePDF(html, dest=pdf)
             
             if pisa_status.err:
-                app.logger.error(f"PDF generation error: {pisa_status.err}")
                 flash("Error generating PDF", "danger")
                 return redirect(url_for('automatic_analysis', patient_id=patient_id))
             

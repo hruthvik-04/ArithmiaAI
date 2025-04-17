@@ -92,6 +92,17 @@
         opacity: 1;
         font-weight: bold;
     }
+    
+    /* Initially hide results container during loading */
+    #resultsContainer.loading {
+        opacity: 0.3;
+        pointer-events: none;
+    }
+    
+    /* Hide ECG plot during loading */
+    #ecg-plot.loading {
+        display: none;
+    }
 </style>
 
 <div class="container">
@@ -119,7 +130,7 @@
                             <div class="card result-card">
                                 <div class="card-body">
                                     <h5 class="card-title">Analysis Results</h5>
-                                    <div id="resultsContainer">
+                                    <div id="resultsContainer" class="{{ 'loading' if not ecg_results }}">
                                         {% if ecg_results %}
                                             <div class="mb-3">
                                                 <h6>Prediction:</h6>
@@ -154,7 +165,7 @@
                         </div>
                         
                         <div class="col-md-7">
-                            <form method="POST">
+                            <form method="POST" id="ecgAnalysisForm">
                                 <div class="mb-3">
                                     <label class="form-label">Select ECG Record</label>
                                     <select name="record_num" class="form-select" required>
@@ -206,7 +217,7 @@
                                         </div>
                                     </div>
                                 </div>
-                                <button type="submit" class="btn btn-primary w-100 mt-4">
+                                <button type="submit" class="btn btn-primary w-100 mt-4" id="analyzeBtn">
                                     <i class="fas fa-arrow-right"></i> Analyze ECG
                                 </button>
                             </form>
@@ -216,7 +227,7 @@
                             <div class="mt-4">
                                 <h5>ECG Waveform</h5>
                                 <hr>
-                                <div id="ecg-plot"></div>
+                                <div id="ecg-plot" class="{{ 'loading' if not ecg_results }}"></div>
                             </div>
                             {% endif %}
                         </div>
@@ -242,35 +253,9 @@
 
 <script src="https://cdn.plot.ly/plotly-2.20.0.min.js"></script>
 <script>
-    // Show loading overlay when form is submitted
-    document.querySelector('form').addEventListener('submit', function() {
-        const loadingModal = document.getElementById('loadingModal');
-        loadingModal.style.display = 'flex';
-        
-        // Animate steps
-        const steps = ['step1', 'step2', 'step3', 'step4', 'step5'];
-        
-        steps.forEach((stepId, index) => {
-            setTimeout(() => {
-                // Reset all steps
-                steps.forEach(id => {
-                    document.getElementById(id).classList.remove('active');
-                });
-                
-                // Activate current step
-                document.getElementById(stepId).classList.add('active');
-                
-                // If last step, keep it active until response comes
-                if (index === steps.length - 1) {
-                    document.getElementById(stepId).textContent = 'Almost done...';
-                }
-            }, index * 800);
-        });
-    });
-
-    // Plot ECG graph if available
     document.addEventListener('DOMContentLoaded', function() {
-        {% if ecg_graph_json %}
+        // Plot ECG graph if available (only when not in loading state)
+        {% if ecg_graph_json and ecg_results %}
         try {
             var graph = {{ ecg_graph_json|safe }};
             Plotly.newPlot('ecg-plot', graph.data, graph.layout, {
@@ -281,6 +266,69 @@
             console.error("Error rendering Plotly graph:", error);
         }
         {% endif %}
+
+        // Form submission handler
+        document.getElementById('ecgAnalysisForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            // Disable the submit button
+            document.getElementById('analyzeBtn').disabled = true;
+            
+            // Show loading overlay
+            const loadingModal = document.getElementById('loadingModal');
+            loadingModal.style.display = 'flex';
+            
+            // Hide results and ECG plot during loading
+            document.getElementById('resultsContainer').classList.add('loading');
+            const ecgPlot = document.getElementById('ecg-plot');
+            if (ecgPlot) ecgPlot.classList.add('loading');
+            
+            // Animate steps with delays
+            const steps = ['step1', 'step2', 'step3', 'step4', 'step5'];
+            const stepTexts = [
+                "Fetching ECG Data",
+                "Preprocessing Signal",
+                "Detecting Heartbeats",
+                "Running Analysis",
+                "Generating Report"
+            ];
+            const stepDelays = [1000, 2000, 3000, 4000, 5000]; // 1 second intervals
+            
+            // Reset all steps first
+            steps.forEach(stepId => {
+                const step = document.getElementById(stepId);
+                step.classList.remove('active');
+                step.textContent = stepTexts[steps.indexOf(stepId)];
+            });
+            
+            // Activate steps sequentially with delays
+            steps.forEach((stepId, index) => {
+                setTimeout(() => {
+                    const step = document.getElementById(stepId);
+                    
+                    // Deactivate previous step (if any)
+                    if (index > 0) {
+                        document.getElementById(steps[index-1]).classList.remove('active');
+                    }
+                    
+                    // Activate current step
+                    step.classList.add('active');
+                    
+                    // Special case for last step
+                    if (index === steps.length - 1) {
+                        setTimeout(() => {
+                            step.textContent = "Finalizing results...";
+                            
+                            // After all steps complete, submit the form
+                            setTimeout(() => {
+                                loadingModal.style.display = 'none';
+                                e.target.submit();
+                            }, 1000);
+                        }, 500);
+                    }
+                }, stepDelays[index]);
+            });
+        });
     });
 </script>
 {% endblock %}

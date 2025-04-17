@@ -61,9 +61,7 @@
         </div>
         <div class="card-body">
           {% if patient %}
-          <!-- Display registered patient details -->
-          <!-- <div class="alert alert-success" role="alert"> -->
-            <!-- Patient registered successfully! -->
+          
           </div>
           <div class="card">
             <div class="card-header">
@@ -124,7 +122,7 @@
               </div>
             </div>
 
-            <!-- Contact Information -->
+           
             <div class="form-group">
               <label for="Address" class="form-label">Address:</label>
               <textarea id="Address" name="Address" class="form-control {% if errors.Address %}invalid{% endif %}" rows="3" required>{{ form_data.Address if form_data else '' }}</textarea>
@@ -202,7 +200,7 @@ document.addEventListener('DOMContentLoaded', function() {
     form.addEventListener('submit', function(event) {
       let isValid = true;
       
-      // Reset all error messages and validation states
+      
       document.querySelectorAll('.form-control').forEach(function(input) {
         input.classList.remove('valid', 'invalid');
       });
@@ -210,62 +208,60 @@ document.addEventListener('DOMContentLoaded', function() {
         errorDiv.style.display = 'none';
       });
 
-      // Validate Patient Name
+     
       const patientName = document.getElementById('Patient_Name');
       if (!patientName.value.trim()) {
         showError(patientName, "Please enter the patient's full name.");
         isValid = false;
       }
 
-      // Validate Age
+      
       const age = document.getElementById('Age');
       if (!age.value || age.value < 1 || age.value > 150) {
         showError(age, "Please enter a valid age between 1 and 150.");
         isValid = false;
       }
 
-      // Validate Gender
       const gender = document.getElementById('Gender');
       if (!gender.value) {
         showError(gender, "Please select a gender.");
         isValid = false;
       }
 
-      // Validate Address
       const address = document.getElementById('Address');
       if (!address.value.trim()) {
         showError(address, "Please enter the patient's address.");
         isValid = false;
       }
 
-      // Validate Email
+   
       const email = document.getElementById('Email_ID');
       if (!email.validity.valid) {
         showError(email, "Please enter a valid email address.");
         isValid = false;
       }
 
-      // Validate Personal Contact
+    
       const personalContact = document.getElementById('Personal_Contact');
       if (!personalContact.value.match(/^\d{10}$/)) {
         showError(personalContact, "Please enter a valid 10-digit phone number.");
         isValid = false;
       }
 
-      // Validate Emergency Contact
+      
       const emergencyContact = document.getElementById('Emergency_Contact');
       if (!emergencyContact.value.match(/^\d{10}$/)) {
         showError(emergencyContact, "Please enter a valid 10-digit phone number.");
         isValid = false;
       }
 
-      // Check if personal and emergency contacts are the same
+      
       if (personalContact.value === emergencyContact.value) {
         showError(emergencyContact, "Personal contact and emergency contact cannot be the same.");
         isValid = false;
       }
 
-      // Validate Doctor ID
+ 
       const doctorID = document.getElementById('Doctor_ID');
       if (!doctorID.value.match(/^DR-\d{3}-\d{4}$/)) {
         showError(doctorID, "Please enter a valid doctor ID in the format DR-001-2024.");

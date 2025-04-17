@@ -1,8 +1,46 @@
 {% extends "base.html" %}
-{% block title %}ECG Waveform Visualization{% endblock %}
+
 
 {% block content %}
 <style>
+    .action-buttons-card {
+        background: var(--white);
+        border-radius: 10px;
+        padding: 20px;
+        box-shadow: var(--shadow);
+    }
+    .button-group-vertical {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+    .button {
+        padding: 12px 20px;
+        border-radius: 5px;
+        text-decoration: none;
+        font-size: 15px;
+        text-align: center;
+        font-weight: 500;
+        color: white;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        border: none;
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .btn-primary {
+        background-color: var(--primary-color);
+    }
+    .btn-secondary {
+        background-color: #7f8c8d;
+    }
+    .button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    }
 .waveform-card {
     background-color: white;
     border-radius: 10px;
@@ -72,9 +110,10 @@
 </style>
 
 <div class="container">
-    <h1>ECG Waveform Visualization</h1>
+    
     
     <div class="waveform-card">
+        
         <h2>ECG - {% if all_beats_count %}{{ all_beats_count }}{% else %}0{% endif %} Beats Detected</h2>
         
         <div class="stats-display">
@@ -117,7 +156,9 @@
     </div>
     
     <div class="button-group" style="margin-top: 20px;">
-        <a href="{{ url_for('automatic_analysis', patient_id=patient_id) }}" class="button btn-secondary">
+        <a href="{{ url_for('automatic_analysis', patient_id=patient_id) }}" 
+           class="button btn-secondary" 
+           style="padding: 12px 20px; border-radius: 5px; text-decoration: none; font-size: 15px; text-align: center; font-weight: 500; color: white; background-color: #7f8c8d; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s ease; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); width: auto;">
             <i class="fas fa-arrow-left"></i> Back to Patient Analysis
         </a>
     </div>

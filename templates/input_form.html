@@ -11,7 +11,7 @@
                 <p>You are now logged into the ECG Analysis System. Use the form below to search for patient records.</p>
             </div>
             
-            <!-- Patient Search Form -->
+           
             <div class="card mb-4">
                 <div class="card-header">
                     <h2 class="text-center">Patient Input Form</h2>
@@ -30,7 +30,6 @@
 
             {% if patient %}
             <div class="row">
-                <!-- Patient Details Column -->
                 <div class="col-md-4">
                     <div class="card mb-3">
                         <div class="card-header">
@@ -68,7 +67,7 @@
                             </div>
                         </div>
                     </div>
-                    <!-- Add Data and Analyze Button -->
+                
                     <div class="text-center mt-4">
                         <a href="{{ url_for('automatic_analysis', patient_id=patient.Patient_ID) }}" class="btn btn-success btn-lg">
                             <i class="fas fa-microchip"></i> Add Data and Analyze
@@ -76,7 +75,7 @@
                     </div>
                 </div>
 
-                <!-- Medical History Column -->
+               
                 <div class="col-md-8">
                     <div class="card mb-6">
                         <div class="card-header d-flex justify-content-between align-items-center">
@@ -139,11 +138,11 @@ document.addEventListener('DOMContentLoaded', function() {
         scrollToTopBtn.addEventListener('click', function() {
             console.log('Scroll button clicked');
             
-            // Check if container has scrollable content
+     
             if (medicalHistoryContainer.scrollHeight > medicalHistoryContainer.clientHeight) {
                 console.log('Container has scrollable content');
                 
-                // Smooth scroll to top
+           
                 medicalHistoryContainer.scrollTo({
                     top: 0,
                     behavior: 'smooth'
