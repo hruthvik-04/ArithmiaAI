@@ -139,8 +139,12 @@ def load_ecg_sample(record_num):
              raise FileNotFoundError(f"ECG data file not found: {record_path}.dat")
         if not os.path.exists(f"{record_path}.hea"):
              raise FileNotFoundError(f"ECG header file not found: {record_path}.hea")
-       
+        # Annotation file might be optional depending on your needs, but good to check
+        # if not os.path.exists(f"{record_path}.atr"):
+        #      print(f"Warning: Annotation file not found: {record_path}.atr")
+
         record = wfdb.rdrecord(record_path)
+        # Only try to read annotations if the file exists or is expected
         try:
             annotation = wfdb.rdann(record_path, 'atr')
             symbols = annotation.symbol
@@ -343,7 +347,15 @@ def compute_grace_score(age, systolic_bp, heart_rate):
         return 0
     
 
-
+# def detect_r_peaks(ecg_signal, fs):
+#     try:
+#         # Clean the ECG signal using NeuroKit2
+#         processed_ecg = nk.ecg_clean(ecg_signal, sampling_rate=fs)
+#         _, r_peaks = nk.ecg_peaks(processed_ecg, sampling_rate=fs)
+#         return np.array(r_peaks["ECG_R_Peaks"])
+#     except Exception as e:
+#         print(f"Error detecting R-peaks: {e}")
+#         return np.array([])
 
 
 
@@ -461,6 +473,199 @@ def generate_ecg_plot(ecg_signal, r_peaks=None, title="ECG Signal", pred_class_i
     
     return f"ecg_plot_{int(time.time())}.html", json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
 
+# #time axis working fine
+# def generate_ecg_plot(ecg_signal, r_peaks=None, title="ECG Signal", pred_class_id=None, fs=360, samples_to_show=2000):
+#     # Convert inputs to numpy arrays
+#     ecg_signal = np.array(ecg_signal)
+#     if r_peaks is not None:
+#         r_peaks = np.array(r_peaks)
+    
+#     # Ensure we don't exceed available samples
+#     samples_to_show = min(samples_to_show, len(ecg_signal))
+    
+#     # DEBUG: Print signal information
+#     print(f"ECG signal length: {len(ecg_signal)} samples")
+#     print(f"First 5 values: {ecg_signal[:5]}")
+    
+#     # Create time axis in seconds
+#     time_axis = np.linspace(0, samples_to_show/fs, samples_to_show)
+    
+#     # DEBUG: Print time axis information
+#     print(f"Time axis range: {time_axis[0]:.2f}s to {time_axis[-1]:.2f}s")
+#     print(f"Time axis length: {len(time_axis)} points")
+    
+#     # Create figure
+#     fig = go.Figure()
+    
+#     # Plot ECG signal
+#     fig.add_trace(go.Scatter(
+#         x=time_axis.tolist(),  # Convert to list for Plotly
+#         y=ecg_signal[:samples_to_show].tolist(),
+#         mode='lines',
+#         line=dict(color='#000000', width=1.5),  # Using your preferred black color
+#         name='ECG Signal',
+#         hovertemplate='Time: %{x:.3f}s<br>Amplitude: %{y:.2f}mV'
+#     ))
+    
+#     if r_peaks is not None and len(r_peaks) > 0:
+#         visible_r_peaks = r_peaks[r_peaks < samples_to_show]
+#         print(f"Visible R-peaks: {visible_r_peaks}")
+        
+#         class_info = next((v for k, v in CLASSES.items() if v.get('id') == pred_class_id), 
+#                        {'name': 'Unknown', 'color': '#95a5a6'})  # Using your preferred color
+        
+#         # Convert peak positions to time in seconds
+#         peak_times = (visible_r_peaks / fs).tolist()
+#         peak_values = ecg_signal[visible_r_peaks].tolist()
+        
+#         fig.add_trace(go.Scatter(
+#             x=peak_times,
+#             y=peak_values,
+#             mode='markers',
+#             marker=dict(
+#                 color=class_info['color'],
+#                 size=8,
+#                 line=dict(width=2, color='#333333'),  # Using your preferred marker style
+#                 symbol='diamond'
+#             ),
+#             name=f'R-peaks ({len(visible_r_peaks)} beats)'
+#         ))
+    
+#     # Update layout with proper indentation
+#     fig.update_layout(
+#         title=dict(text=title, x=0.5, font=dict(size=18)),
+#         xaxis_title='Time (s)',
+#         yaxis_title='Amplitude (mV)',
+#         height=450,
+#         margin=dict(l=60, r=40, t=80, b=60),
+#         plot_bgcolor='rgba(255, 235, 235, 0.5)',  # Your preferred background
+#         paper_bgcolor='white',
+#         hovermode='closest',
+#         showlegend=True,
+#         xaxis=dict(
+#             gridcolor='rgba(255, 99, 99, 0.5)',  # Major gridlines
+#             showgrid=True,
+#             gridwidth=1,
+#             dtick=0.2,  # In seconds now, not samples
+#             minor=dict(
+#                 showgrid=True,
+#                 gridcolor='rgba(255, 99, 99, 0.2)',  # Minor gridlines
+#                 gridwidth=0.5,
+#                 dtick=0.04  # In seconds now, not samples
+#             ),
+#             rangeslider=dict(visible=True),
+#             tickformat='.2f'
+#         ),
+#         yaxis=dict(
+#             gridcolor='rgba(255, 99, 99, 0.2)',  # Major gridlines
+#             showgrid=True,
+#             gridwidth=1,
+#             dtick=0.5,  # Major grid every 0.5mV
+#             minor=dict(
+#                 showgrid=True,
+#                 gridcolor='rgba(255, 99, 99, 0.2)',  # Minor gridlines
+#                 gridwidth=0.5,
+#                 dtick=0.1  # Minor grid every 0.1mV
+#             )
+#         )
+#     )
+    
+#     return f"ecg_plot_{int(time.time())}.html", json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+
+#working properlybut time axis not in seconds
+# def generate_ecg_plot(ecg_signal, r_peaks=None, title="ECG Signal", pred_class_id=None, fs=360, samples_to_show=2000):
+    
+#     # Convert inputs to numpy arrays
+#     ecg_signal = np.array(ecg_signal)
+#     if r_peaks is not None:
+#         r_peaks = np.array(r_peaks)
+    
+#     # Create figure
+#     fig = go.Figure()
+    
+#     # Add ECG trace with black line
+#     fig.add_trace(go.Scatter(
+#         x=list(range(samples_to_show)),
+#         y=ecg_signal[:samples_to_show].tolist(),
+#         mode='lines',
+#         line=dict(color='#000000', width=1.5),
+#         name='ECG Signal'
+#     ))
+    
+#     # Highlight R-peaks if available
+#     if r_peaks is not None and len(r_peaks) > 0:
+#         visible_r_peaks = r_peaks[r_peaks < samples_to_show]
+#         class_info = next((v for k, v in CLASSES.items() if v.get('id') == pred_class_id), 
+#                          {'name': 'Unknown', 'color': '#95a5a6'})
+        
+        
+#         refined_peaks = []
+#         for peak in visible_r_peaks:
+#             start = max(0, peak - 5)
+#             end = min(len(ecg_signal), peak + 5)
+#             window = ecg_signal[start:end]
+#             exact_peak = start + np.argmax(window)
+#             refined_peaks.append(exact_peak)
+        
+#         refined_peaks = np.array(refined_peaks)
+        
+#         fig.add_trace(go.Scatter(
+#             x=refined_peaks.tolist(),
+#             y=ecg_signal[refined_peaks].tolist(),
+#             mode='markers',
+#             marker=dict(
+#                 color=class_info['color'],
+#                 size=8,
+#                 line=dict(width=2, color='#333333'),
+#                 symbol='diamond'
+#             ),
+#             name=f'R-peaks ({len(refined_peaks)} beats)'
+#         ))
+    
+    
+#     fig.update_layout(
+#         title=dict(text=title, x=0.5, font=dict(size=18)),
+#         xaxis_title='Time (s)',
+#         yaxis_title='Amplitude (mV)',
+#         height=450,
+#         margin=dict(l=60, r=40, t=80, b=60),
+#         plot_bgcolor='rgba(255, 235, 235, 0.5)',
+#         paper_bgcolor='white',
+#         hovermode='closest',
+#         showlegend=True,
+#         xaxis=dict(
+#             gridcolor='rgba(255, 99, 99, 0.5)',  # Major gridlines
+#             showgrid=True,
+#             gridwidth=1,
+#             dtick=fs*0.2,  # Major grid every 0.2s (5mm at 25mm/s)
+#             minor=dict(
+#                 showgrid=True,
+#                 gridcolor='rgba(255, 99, 99, 0.2)',  # Minor gridlines
+#                 gridwidth=0.5,
+#                 dtick=fs*0.04  # Minor grid every 0.04s (1mm)
+#             ),
+#             rangeslider=dict(visible=True),
+#             tickformat='.2f'  # Show 2 decimal places for time
+#         ),
+#         yaxis=dict(
+#             gridcolor='rgba(255, 99, 99, 0.2)',  # Major gridlines
+#             showgrid=True,
+#             gridwidth=1,
+#             dtick=0.5,  # Major grid every 0.5mV (5mm at 10mm/mV)
+#             minor=dict(
+#                 showgrid=True,
+#                 gridcolor='rgba(255, 99, 99, 0.2)',  # Minor gridlines
+#                 gridwidth=0.5,
+#                 dtick=0.1  # Minor grid every 0.1mV (1mm)
+#             )
+#         )
+#     )
+    
+#     # Convert x-axis from samples to seconds
+#     fig.update_xaxes(tickvals=np.arange(0, samples_to_show, fs),
+#                     ticktext=[f"{x/fs:.2f}" for x in np.arange(0, samples_to_show, fs)])
+    
+#     return f"ecg_plot_{int(time.time())}.html", json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
 
 def generate_pdf(predicted_class, framingham_risk, grace_score, heart_rate, 
                 qt_interval, pr_interval, vfib_detected=None, 
@@ -732,7 +937,18 @@ def generate_ecg_waveform_data(record_num, samples_to_show, patient_id):
         peak_times = [time_axis[p] for p in visible_peaks]
         peak_values = [ecg_filtered[p] for p in visible_peaks]
         
+        # Create figure with ECG-standard background
         fig = go.Figure()
+        
+        # Add ECG trace with black line
+        # fig.add_trace(go.Scatter(
+        #     x=time_axis.tolist(),
+        #     y=ecg_display.tolist(),
+        #     mode='lines',
+        #     line=dict(color='#000000', width=1.5),
+        #     name='ECG Signal',
+        #     hovertemplate='Time: %{x:.3f}s<br>Amplitude: %{y:.2f}mV'
+        # ))
         
         fig.add_trace(go.Scatter(
             x=time_axis.tolist(),
@@ -757,7 +973,22 @@ def generate_ecg_waveform_data(record_num, samples_to_show, patient_id):
                 name=f'R-peaks ({len(visible_peaks)} beats)',
                 hovertemplate='R-peak at %{x:.3f}s<br>Amplitude: %{y:.2f}mV'
             ))
+        # if len(visible_peaks) > 0:
+        #     fig.add_trace(go.Scatter(
+        #         x=peak_times,
+        #         y=peak_values,
+        #         mode='markers',
+        #         marker=dict(
+        #             color='#e74c3c',  # Red color for peaks
+        #             size=12,
+        #             line=dict(width=2, color='#c0392b'),
+        #             symbol='diamond'
+        #         ),
+        #         name=f'R-peaks ({len(visible_peaks)} beats)',
+        #         hovertemplate='R-peak at %{x:.3f}s<br>Amplitude: %{y:.2f}mV'
+        #     ))
         
+        # Apply professional ECG grid layout (standard 1mm minor, 5mm major grid)
         fig.update_layout(
             title=dict(text=f'ECG - Patient {patient_id}', x=0.5, font=dict(size=18)),
             xaxis_title='Time (s)',
@@ -814,6 +1045,83 @@ def generate_ecg_waveform_data(record_num, samples_to_show, patient_id):
     except Exception as e:
         print(f"Exception in generate_ecg_waveform_data: {e}")
         raise
+# def generate_ecg_waveform_data(record_num, samples_to_show, patient_id):
+#     try:
+#         ecg_signal, fs, _, _ = load_ecg_sample(record_num)
+#         if ecg_signal is None or fs is None:
+#             raise ValueError("Failed to load ECG record")
+        
+#         ecg_filtered = ecg_signal[:samples_to_show]
+
+#         # 🧠 Build Plotly figure
+#         fig = go.Figure()
+#         fig.add_trace(go.Scatter(
+#             x=list(range(len(ecg_filtered))),
+#             y=ecg_filtered,
+#             mode='lines',
+#             name='ECG'
+#         ))
+
+#         # fig.update_layout(
+#         #     title='ECG Signal',
+#         #     xaxis_title='Sample Index',
+#         #     yaxis_title='Amplitude',
+#         #     margin=dict(l=40, r=40, t=40, b=40),
+#         #     height=400
+#         # )
+        
+#         fig.update_layout(
+#         title=dict(text='ECG Signal', x=0.5, font=dict(size=18)),
+#         xaxis_title='Time (s)',
+#         yaxis_title='Amplitude (mV)',
+#         height=450,
+#         margin=dict(l=60, r=40, t=80, b=60),
+#         plot_bgcolor='rgba(255, 235, 235, 0.5)',
+#         paper_bgcolor='white',
+#         hovermode='closest',
+#         showlegend=True,
+#         xaxis=dict(
+#             gridcolor='rgba(255, 99, 99, 0.5)',
+#             showgrid=True,
+#             gridwidth=1,
+#             dtick=0.2,  # Major grid every 0.2s (5mm)
+#             minor=dict(
+#                 showgrid=True,
+#                 gridcolor='rgba(255, 99, 99, 0.2)',
+#                 gridwidth=0.5,
+#                 dtick=0.04  # Minor grid every 0.04s (1mm)
+#             ),
+#             rangeslider=dict(visible=True),
+#             tickformat='.2f'
+#         ),
+#         yaxis=dict(
+#             gridcolor='rgba(255, 99, 99, 0.2)',
+#             showgrid=True,
+#             gridwidth=1,
+#             dtick=0.5,  # Major grid every 0.5mV (5mm)
+#             minor=dict(
+#                 showgrid=True,
+#                 gridcolor='rgba(255, 99, 99, 0.2)',
+#                 gridwidth=0.5,
+#                 dtick=0.1  # Minor grid every 0.1mV (1mm)
+#             )
+#         )
+#     )
+
+#         # ✅ Convert to JSON string for safe frontend use
+#         safe_plot_json = json.dumps(fig.to_plotly_json())
+
+#         result = {
+#             "plot_json": safe_plot_json,
+#             "record_num": record_num,
+#             "patient_id": patient_id,
+#             "samples_to_show": samples_to_show,
+#             "total_samples": len(ecg_filtered)
+#         }
+#         return result
+#     except Exception as e:
+#         print(f"Exception in generate_ecg_waveform_data: {e}")
+#         raise
 
 def ecg_waveform(patient_id):
     record_num = request.args.get('record_num', '100')
@@ -1282,7 +1590,262 @@ def generate_report(patient_id):
         flash(f"Error generating report: {str(e)}", "danger")
         return redirect(url_for('automatic_analysis', patient_id=patient_id))
 
+# @app.route('/generate_report/<patient_id>')
+# @login_required
+# def generate_report(patient_id):
+#     try:
+#         # Verify required directories exist
+#         verify_directories()
+        
+#         # Debug print all received parameters
+#         print(f"Generating report for patient {patient_id}")
+#         print(f"Received parameters: {request.args}")
+        
+#         # Get patient data
+#         cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
+#         try:
+#             cursor.execute("""
+#                 SELECT p.*, d.Username AS Doctor_Name 
+#                 FROM patient_profile p
+#                 LEFT JOIN doctor d ON p.Doctor_ID = d.Doctor_ID
+#                 WHERE p.Patient_ID = %s
+#             """, (patient_id,))
+#             patient = cursor.fetchone()
+            
+#             if not patient:
+#                 flash("Patient not found", "danger")
+#                 return redirect(url_for("input_form"))
+                
+#         except Exception as e:
+#             flash(f"Database error: {str(e)}", "danger")
+#             return redirect(url_for("input_form"))
+#         finally:
+#             cursor.close()
 
+#         # Get all parameters from request - no defaults for critical fields
+#         data = {
+#             'record_num': request.args.get('record_num', ''),
+#             'predicted_class': request.args.get('predicted_class', ''),
+#             'confidence': float(request.args.get('confidence', 0)),
+#             'heart_rate': float(request.args.get('heart_rate', 0)),
+#             'qt_interval': float(request.args.get('qt_interval', 0)),
+#             'pr_interval': float(request.args.get('pr_interval', 0)),
+#             'framingham_risk': float(request.args.get('framingham_risk', 0)),
+#             'grace_score': float(request.args.get('grace_score', 0)),
+#             'systolic_bp': float(request.args.get('systolic_bp', 0)),
+#             'cholesterol': float(request.args.get('cholesterol', 0)),
+#             'hdl': float(request.args.get('hdl', 0)),
+#             'smoker': request.args.get('smoker', '0') == '1',
+#             'diabetes': request.args.get('diabetes', '0') == '1',
+#             'all_beats_count': int(request.args.get('all_beats_count', 0)),
+#             'class_probabilities': {},
+#             'ecg_image': request.args.get('ecg_image', '')
+#         }
+
+#         # Validate required fields
+#         if not data['predicted_class']:
+#             flash("Missing required analysis data", "danger")
+#             return redirect(url_for('automatic_analysis', patient_id=patient_id))
+
+#         # Process class probabilities
+#         try:
+#             data['class_probabilities'] = json.loads(request.args.get('class_probabilities', '{}'))
+#         except json.JSONDecodeError:
+#             data['class_probabilities'] = {}
+
+#         # Find the latest ECG image for this patient
+#         ecg_image_path = None
+#         static_dir = os.path.join(app.root_path, 'static', 'ecg_images')
+        
+#         # First check if we got an image path from the request
+#         if data['ecg_image'] and os.path.exists(os.path.join(app.root_path, data['ecg_image'].lstrip('/'))):
+#             ecg_image_path = data['ecg_image']
+#             print(f"Using provided ECG image path: {ecg_image_path}")
+#         elif os.path.exists(static_dir):
+#             # Get all ECG images for this patient and record
+#             ecg_files = [
+#                 f for f in os.listdir(static_dir)
+#                 if f.startswith(f"ecg_{patient_id}_{data['record_num']}_")
+#             ]
+            
+#             # If none found for this specific record, try any for this patient
+#             if not ecg_files:
+#                 ecg_files = [
+#                     f for f in os.listdir(static_dir)
+#                     if f.startswith(f"ecg_{patient_id}_")
+#                 ]
+            
+#             if ecg_files:
+#                 # Sort by timestamp (newest first)
+#                 ecg_files.sort(reverse=True)
+#                 ecg_image_path = f"/static/ecg_images/{ecg_files[0]}"
+#                 print(f"Found ECG image at: {ecg_image_path}")
+
+#         # Prepare report context
+#         report_date = datetime.now()
+#         context = {
+#             'patient': patient,
+#             'doctor_name': patient.get('Doctor_Name', 'Not assigned'),
+#             'age': patient.get('Age', 'N/A'),
+#             'gender': patient.get('Gender', 'N/A'),
+#             'report_date': report_date,
+#             'current_year': report_date.year,
+#             'report_id': f"ECG-{report_date.strftime('%Y%m%d')}-{patient_id}",
+#             'ecg_image_path': ecg_image_path,
+#             'classes': CLASSES,
+#             **data  # Unpack all analysis data
+#         }
+
+#         # Debug output
+#         print(f"Template context: {context}")
+
+#         # Check if download was requested
+#         if request.args.get('download') == 'pdf':
+#             # Render template with actual data
+#             html = render_template('report.html', **context)
+            
+#             # Create PDF with proper encoding
+#             pdf = BytesIO()
+#             pisa_status = pisa.CreatePDF(
+#                 html,
+#                 dest=pdf,
+#                 encoding='UTF-8',
+#                 link_callback=lambda uri, _: uri  # Handle relative paths
+#             )
+            
+#             if pisa_status.err:
+#                 app.logger.error(f"PDF generation error: {pisa_status.err}")
+#                 flash("Error generating PDF", "danger")
+#                 return redirect(url_for('automatic_analysis', patient_id=patient_id))
+            
+#             pdf.seek(0)
+#             response = make_response(pdf.getvalue())
+#             response.headers['Content-Type'] = 'application/pdf'
+#             response.headers['Content-Disposition'] = f'attachment; filename={context["report_id"]}.pdf'
+#             return response
+
+#         # Render the report template
+#         return render_template('report.html', **context)
+
+#     except Exception as e:
+#         flash(f"Error generating report: {str(e)}", "danger")
+#         app.logger.error(f"Report generation error: {str(e)}\n{traceback.format_exc()}")
+#         return redirect(url_for('automatic_analysis', patient_id=patient_id))
+    
+# @app.route('/generate_report/<patient_id>')
+# @login_required
+# def generate_report(patient_id):
+#     try:
+#         # Debug print all received parameters
+#         print(f"Received parameters: {request.args}")
+        
+#         # Get patient data
+#         cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
+#         try:
+#             cursor.execute("""
+#                 SELECT p.*, d.Username AS Doctor_Name 
+#                 FROM patient_profile p
+#                 LEFT JOIN doctor d ON p.Doctor_ID = d.Doctor_ID
+#                 WHERE p.Patient_ID = %s
+#             """, (patient_id,))
+#             patient = cursor.fetchone()
+            
+#             if not patient:
+#                 flash("Patient not found", "danger")
+#                 return redirect(url_for("input_form"))
+                
+#         except Exception as e:  # Fixed syntax here
+#             flash(f"Database error: {str(e)}", "danger")
+#             return redirect(url_for("input_form"))
+#         finally:
+#             cursor.close()
+
+#         # Get all parameters from request - no defaults for critical fields
+#         data = {
+#             'record_num': request.args.get('record_num', ''),
+#             'predicted_class': request.args.get('predicted_class', ''),
+#             'confidence': float(request.args.get('confidence', 0)),
+#             'heart_rate': float(request.args.get('heart_rate', 0)),
+#             'qt_interval': float(request.args.get('qt_interval', 0)),
+#             'pr_interval': float(request.args.get('pr_interval', 0)),
+#             'framingham_risk': float(request.args.get('framingham_risk', 0)),
+#             'grace_score': float(request.args.get('grace_score', 0)),
+#             'systolic_bp': float(request.args.get('systolic_bp', 0)),
+#             'cholesterol': float(request.args.get('cholesterol', 0)),
+#             'hdl': float(request.args.get('hdl', 0)),
+#             'smoker': request.args.get('smoker', '0') == '1',
+#             'diabetes': request.args.get('diabetes', '0') == '1',
+#             'all_beats_count': int(request.args.get('all_beats_count', 0)),
+#             'class_probabilities': {},
+#             'ecg_image': request.args.get('ecg_image', '')  # Get pre-generated ECG image
+#         }
+
+#         # Validate required fields
+#         if not data['predicted_class']:
+#             flash("Missing required analysis data", "danger")
+#             return redirect(url_for('automatic_analysis', patient_id=patient_id))
+
+#         # Process class probabilities
+#         try:
+#             data['class_probabilities'] = json.loads(request.args.get('class_probabilities', '{}'))
+#         except json.JSONDecodeError:
+#             data['class_probabilities'] = {}
+
+#         # Prepare report context
+#         report_date = datetime.now()
+#         context = {
+#             'patient': patient,
+#             'doctor_name': patient.get('Doctor_Name', 'Not assigned'),
+#             'age': patient.get('Age', 'N/A'),
+#             'gender': patient.get('Gender', 'N/A'),
+#             'report_date': report_date,
+#             'current_year': report_date.year,
+#             'report_id': f"ECG-{report_date.strftime('%Y%m%d')}-{patient_id}",
+#             'ecg_image': data['ecg_image'],  # Use the passed ECG image
+#             'classes': CLASSES,
+#             **data  # Unpack all analysis data
+#         }
+
+#         # Debug output
+#         print(f"Template context: {context}")
+
+#         # Check if download was requested
+#         if request.args.get('download') == 'pdf':
+#             # Render template with actual data
+#             html = render_template('report.html', **context)
+            
+#             # Create PDF with proper encoding
+#             pdf = BytesIO()
+#             pisa_status = pisa.CreatePDF(
+#                 html,
+#                 dest=pdf,
+#                 encoding='UTF-8',
+#                 link_callback=lambda uri, _: uri  # Handle relative paths
+#             )
+            
+#             if pisa_status.err:
+#                 app.logger.error(f"PDF generation error: {pisa_status.err}")
+#                 flash("Error generating PDF", "danger")
+#                 return redirect(url_for('automatic_analysis', patient_id=patient_id))
+            
+#             pdf.seek(0)
+#             response = make_response(pdf.getvalue())
+#             response.headers['Content-Type'] = 'application/pdf'
+#             response.headers['Content-Disposition'] = f'attachment; filename={context["report_id"]}.pdf'
+#             return response
+
+#         # Render the report template
+#         return render_template('report.html', **context)
+
+#     except Exception as e:
+#         flash(f"Error generating report: {str(e)}", "danger")
+#         app.logger.error(f"Report generation error: {str(e)}\n{traceback.format_exc()}")
+#         return redirect(url_for('automatic_analysis', patient_id=patient_id))
+    
+@app.route("/dashboard")
+@doctor_required
+def dashboard():
+    return render_template("dashboard.html", username=current_user.username)
 @app.context_processor
 def inject_pytz():
    return dict(pytz=pytz)
