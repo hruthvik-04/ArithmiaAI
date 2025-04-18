@@ -25,7 +25,6 @@
     }
     .container {
         max-width: 1200px;
-        
         margin: 0 auto;
         padding: 0 15px;
     }
@@ -151,51 +150,9 @@
         width: 100%;
         height: 400px;
     }
-    .waveform-controls {
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-        margin-top: 15px;
-    }
-    .scroll-container {
+    #ecg-plotly-graph {
         width: 100%;
-    }
-    .slider {
-        width: 100%;
-        height: 15px;
-        -webkit-appearance: none;
-        appearance: none;
-        background: #ddd;
-        outline: none;
-        border-radius: 10px;
-    }
-    .slider::-webkit-slider-thumb {
-        -webkit-appearance: none;
-        appearance: none;
-        width: 25px;
-        height: 25px;
-        background: var(--primary-color);
-        cursor: pointer;
-        border-radius: 50%;
-    }
-    .zoom-controls {
-        display: flex;
-        gap: 10px;
-        justify-content: center;
-    }
-    .control-button {
-        padding: 8px 15px;
-        background-color: var(--primary-color);
-        color: white;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        font-size: 14px;
-        transition: all 0.2s;
-    }
-    .control-button:hover {
-        background-color: #2980b9;
-        transform: translateY(-2px);
+        height: 450px;
     }
     /* Classification Probabilities */
     .classification-section {
@@ -243,33 +200,20 @@
         font-size: 12px;
         color: #7f8c8d;
     }
-    .btn-primary {
-        background-color: #4e73df;
-        border-color: #4e73df;
-        transition: all 0.3s;
-    }
-    .btn-primary:hover {
-        background-color: #2e59d9;
-        transform: translateY(-1px);
-    }
-    .spinner-border {
-        vertical-align: middle;
-        margin-left: 8px;
-    }
     /* Action Buttons */
-    .button-group {
+    .action-buttons-container {
+        float: left;
+        width: 300px;
+        margin-right: 20px;
         display: flex;
-        justify-content: center;
-        gap: 15px;
-        margin-top: 30px;
-        flex-wrap: wrap;
+        flex-direction: column;
+        gap: 12px;
     }
     .button {
-        padding: 10px 20px;
+        padding: 12px 20px;
         border-radius: 5px;
         text-decoration: none;
         font-size: 15px;
-        min-width: 200px;
         text-align: center;
         font-weight: 500;
         color: white;
@@ -277,6 +221,10 @@
         transition: all 0.2s ease;
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         border: none;
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
     .btn-primary {
         background-color: var(--primary-color);
@@ -288,13 +236,44 @@
         transform: translateY(-2px);
         box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
     }
+    .spinner-border {
+        vertical-align: middle;
+        margin-left: 8px;
+    }
+    .d-none {
+        display: none;
+    }
+    /* Stats Display */
+    .stats-display {
+        margin: 15px 0;
+        padding: 10px;
+        background-color: #f5f5f5;
+        border-radius: 5px;
+        display: flex;
+        justify-content: space-around;
+    }
+    .stat-item {
+        text-align: center;
+    }
+    /* Error Display */
+    .alert-danger {
+        padding: 15px;
+        border-radius: 5px;
+        background-color: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+    }
     /* Responsive Design */
     @media (max-width: 992px) {
         .patient-card,
+        .action-buttons-container,
         .results-section {
             width: 100%;
             float: none;
             margin-right: 0;
+        }
+        .action-buttons-container {
+            margin-bottom: 20px;
         }
         .risk-metrics {
             grid-template-columns: repeat(2, 1fr);
@@ -309,126 +288,72 @@
             min-width: 80px;
             font-size: 13px;
         }
-        .button-group {
-            flex-direction: column;
-        }
-        .button {
-            width: 100%;
-        }
     }
-    .waveform-card {
-    background-color: white;
-    border-radius: 10px;
-    padding: 20px;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-    margin-top: 20px;
-}
-.waveform-container {
-    width: 100%;
-    overflow-x: auto;
-    margin: 15px 0;
-    border: 1px solid #eee;
-    border-radius: 5px;
-    padding: 10px;
-    background-color: #fafafa;
-}
-.zoom-controls {
-    display: flex;
-    gap: 10px;
-    justify-content: center;
-    margin-top: 15px;
-}
-.control-button {
-    padding: 8px 15px;
-    background-color: #4a6fa5;
-    color: white !important;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 14px;
-    transition: all 0.2s;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-.control-button:hover {
-    background-color: #3a5a8c !important;
-    transform: translateY(-2px);
-}
-.samples-control {
-    margin-top: 15px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 10px;
-}
-.stats-display {
-    margin: 15px 0;
-    padding: 10px;
-    background-color: #f5f5f5;
-    border-radius: 5px;
-    display: flex;
-    justify-content: space-around;
-}
-.stat-item {
-    text-align: center;
-}
-#ecg-plotly-graph {
-    width: 100%;
-    height: 450px;
-}
-.alert-danger {
-    padding: 15px;
-    border-radius: 5px;
-    background-color: #f8d7da;
-    color: #721c24;
-    border: 1px solid #f5c6cb;
-}
 </style>
 <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+
 <div class="container">
     <div class="clearfix">
-        <!-- Patient Details Card -->
-        <div class="patient-card">
-            <div class="patient-header">
-                <h2>Patient Information</h2>
+        <!-- Left Column (Patient Card + Buttons) -->
+        <div style="float: left; width: 300px; margin-right: 20px;">
+            <!-- Patient Details Card -->
+            <div class="patient-card">
+                <div class="patient-header">
+                    <h2>Patient Information</h2>
+                </div>
+                <div class="info-group">
+                    <span class="info-label">Name:</span>
+                    <span class="info-value">{{ patient.Patient_Name if patient else "Not Provided" }}</span>
+                </div>
+                <div class="info-group">
+                    <span class="info-label">Patient ID:</span>
+                    <span class="info-value">{{ patient.Patient_ID if patient else "Not Provided" }}</span>
+                </div>
+                <div class="info-group">
+                    <span class="info-label">Age:</span>
+                    <span class="info-value">{{ age }} years</span>
+                </div>
+                <div class="info-group">
+                    <span class="info-label">Gender:</span>
+                    <span class="info-value">{{ patient.Gender if patient else "Not Provided" }}</span>
+                </div>
+                <div class="info-group">
+                    <span class="info-label">Systolic BP:</span>
+                    <span class="info-value">{{ systolic_bp }} mmHg</span>
+                </div>
+                <div class="info-group">
+                    <span class="info-label">Cholesterol:</span>
+                    <span class="info-value">{{ cholesterol }} mg/dL</span>
+                </div>
+                <div class="info-group">
+                    <span class="info-label">HDL:</span>
+                    <span class="info-value">{{ hdl }} mg/dL</span>
+                </div>
+                <div class="info-group">
+                    <span class="info-label">Smoker:</span>
+                    <span class="info-value">{{ 'Yes' if smoker else 'No' }}</span>
+                </div>
+                <div class="info-group">
+                    <span class="info-label">Diabetic:</span>
+                    <span class="info-value">{{ 'Yes' if diabetes else 'No' }}</span>
+                </div>
             </div>
-            <div class="info-group">
-                <span class="info-label">Name:</span>
-                <span class="info-value">{{ patient.Patient_Name if patient else "Not Provided" }}</span>
-            </div>
-            <div class="info-group">
-                <span class="info-label">Patient ID:</span>
-                <span class="info-value">{{ patient.Patient_ID if patient else "Not Provided" }}</span>
-            </div>
-            <div class="info-group">
-                <span class="info-label">Age:</span>
-                <span class="info-value">{{ age }} years</span>
-            </div>
-            <div class="info-group">
-                <span class="info-label">Gender:</span>
-                <span class="info-value">{{ patient.Gender if patient else "Not Provided" }}</span>
-            </div>
-            <div class="info-group">
-                <span class="info-label">Systolic BP:</span>
-                <span class="info-value">{{ systolic_bp }} mmHg</span>
-            </div>
-            <div class="info-group">
-                <span class="info-label">Cholesterol:</span>
-                <span class="info-value">{{ cholesterol }} mg/dL</span>
-            </div>
-            <div class="info-group">
-                <span class="info-label">HDL:</span>
-                <span class="info-value">{{ hdl }} mg/dL</span>
-            </div>
-            <div class="info-group">
-                <span class="info-label">Smoker:</span>
-                <span class="info-value">{{ 'Yes' if smoker else 'No' }}</span>
-            </div>
-            <div class="info-group">
-                <span class="info-label">Diabetic:</span>
-                <span class="info-value">{{ 'Yes' if diabetes else 'No' }}</span>
+
+            <!-- Action Buttons -->
+            <div class="action-buttons-container">
+                <button onclick="generateReport()" class="button btn-primary" id="reportBtn">
+                    <i class="fas fa-file-pdf"></i> 
+                    <span id="btnText">Generate Full Report</span>
+            <span id="btnSpinner" class="spinner-border spinner-border-sm d-none" role="status"></span>
+                </button>
+                <a href="{{ url_for('input_form') }}" class="button btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Back to Patient Search
+                </a>
             </div>
         </div>
-        <!-- Results Section -->
+
+        <!-- Right Column (Results) -->
         <div class="results-section">
             <!-- Analysis Results -->
             <div class="result-card">
@@ -475,6 +400,7 @@
                     </div>
                 </div>
             </div>
+
             <!-- Classification Probabilities -->
             <div class="classification-section">
                 <h2 class="section-title">Classification Probabilities</h2>
@@ -493,6 +419,22 @@
                     {% endfor %}
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- ECG Visualization Card (Full Width Below) -->
+    <div class="waveform-card">
+        <h2>ECG - {% if all_beats_count %}{{ all_beats_count }}{% else %}0{% endif %} Beats Detected</h2>
+        <div class="stats-display">
+            <div class="stat-item">
+                <strong>Total Beats:</strong> {{ all_beats_count }}
+            </div>
+            <div class="stat-item">
+                <strong>Samples:</strong> <span id="visible-samples">{{ samples_to_show }}</span>
+            </div>
+        </div>
+        <div class="waveform-container">
+            <div id="ecg-plotly-graph"></div>
         </div>
     </div>
 
@@ -531,214 +473,232 @@
         {% endfor %}
         <input type="hidden" name="class_probabilities" value="{{ prob_dict|tojson|safe }}">
     </form>
-   
-    <!-- ECG Visualization Card -->
-    <!-- <div class="card mt-4">
-        <div class="card-body">
-            <h5 class="card-title">ECG Visualization</h5>
-            <p class="card-text">Click below to view detailed ECG waveform visualization</p>
-            <a href="{{ url_for('ecg_waveform', patient_id=patient.Patient_ID, record_num=record_num) }}" 
-               class="btn btn-primary">
-                View ECG Waveform
-            </a>
-        </div>
-    </div> -->
-    <div class="container">
-        <h1>ECG Waveform Visualization</h1>
-        
-        <div class="waveform-card">
-            <h2>ECG - {% if all_beats_count %}{{ all_beats_count }}{% else %}0{% endif %} Beats Detected</h2>
-            
-            <div class="stats-display">
-                <div class="stat-item">
-                    <strong>Total Beats:</strong> {{ all_beats_count }}
-                </div>
-                <div class="stat-item">
-                    <strong>Visible Beats:</strong> <span id="visible-beats-count">{{ visible_beats_count }}</span>
-                </div>
-                <div class="stat-item">
-                    <strong>Samples:</strong> <span id="visible-samples">{{ samples_to_show }}</span>
-                </div>
-            </div>
-            
-            <div class="waveform-container">
-                <div id="ecg-plotly-graph"></div>
-            </div>
-            
-            <div class="samples-control">
-                <form method="get" action="" id="samples-form">
-                    <input type="hidden" name="record_num" value="{{ record_num }}">
-                    <label for="samples-input">Samples to Display:</label>
-                    <input type="number" id="samples-input" name="samples" 
-                           value="{{ samples_to_show }}" min="500" max="{{ total_samples }}" step="500">
-                    <button type="submit" class="control-button">Update</button>
-                </form>
-            </div>
-            
-            <div class="zoom-controls">
-                <button class="control-button" id="zoom-out-btn">
-                    <i class="fas fa-search-minus"></i> Zoom Out
-                </button>
-                <button class="control-button" id="reset-view-btn">
-                    <i class="fas fa-sync-alt"></i> Reset View
-                </button>
-                <button class="control-button" id="zoom-in-btn">
-                    <i class="fas fa-search-plus"></i> Zoom In
-                </button>
-            </div>
-        </div>
-        
-        <!-- <div class="button-group" style="margin-top: 20px;">
-            <a href="{{ url_for('automatic_analysis', patient_id=patient_id) }}" class="button btn-secondary">
-                <i class="fas fa-arrow-left"></i> Back to Patient Analysis
-            </a>
-        </div> -->
-    </div>
-    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        try {
-            // Get the raw JSON string from template
-            const rawPlotJson = '{{ plot_json | safe }}';
-            console.log("Raw JSON received from server:", rawPlotJson.substring(0, 100) + "...");
-            
-            // Parse the JSON
-            let plotData;
-            try {
-                plotData = JSON.parse(rawPlotJson);
-                console.log("Successfully parsed JSON data");
-            } catch (e) {
-                console.error("JSON parsing failed:", e);
-                throw new Error("Invalid JSON data received from server. " + e.message);
-            }
-            
-            // Validate plot data structure
-            if (!plotData || !plotData.data || !plotData.layout) {
-                throw new Error("Plot data missing required structure. Expected {data: [], layout: {}}");
-            }
-            
-            // Render the plot
-            const graphDiv = document.getElementById('ecg-plotly-graph');
-            Plotly.newPlot(graphDiv, plotData.data, plotData.layout)
-                .then(function() {
-                    console.log("Plotly graph rendered successfully");
-                    updateVisibleBeatsCount();
-                })
-                .catch(function(err) {
-                    console.error("Plotly rendering failed:", err);
-                    throw new Error("Failed to render ECG plot. " + err.message);
-                });
-            
-            // Track current zoom range
-            let currentRange = null;
-            
-            // Update visible beats count based on current view
-            function updateVisibleBeatsCount() {
-                if (!plotData.data[1] || !plotData.data[1].x) return;
-                
-                const layout = graphDiv.layout;
-                const xRange = layout.xaxis.range || [0, {{ samples_to_show }}];
-                
-                const visiblePeaks = plotData.data[1].x.filter(x => 
-                    x >= xRange[0] && x <= xRange[1]
-                ).length;
-                
-                document.getElementById('visible-beats-count').textContent = visiblePeaks;
-            }
-            
-            // Zoom controls
-            document.getElementById('zoom-in-btn').addEventListener('click', function() {
-                Plotly.relayout(graphDiv, {
-                    'xaxis.range[0]': currentRange ? currentRange[0] * 0.9 : 0,
-                    'xaxis.range[1]': currentRange ? currentRange[1] * 0.9 : {{ samples_to_show }} * 0.9
-                }).then(updateVisibleBeatsCount);
-            });
-            
-            document.getElementById('zoom-out-btn').addEventListener('click', function() {
-                Plotly.relayout(graphDiv, {
-                    'xaxis.range[0]': currentRange ? currentRange[0] * 1.1 : 0,
-                    'xaxis.range[1]': currentRange ? currentRange[1] * 1.1 : {{ samples_to_show }} * 1.1
-                }).then(updateVisibleBeatsCount);
-            });
-            
-            document.getElementById('reset-view-btn').addEventListener('click', function() {
-                Plotly.relayout(graphDiv, {
-                    'xaxis.autorange': true,
-                    'yaxis.autorange': true
-                }).then(updateVisibleBeatsCount);
-            });
-            
-            // Track zoom/pan events
-            graphDiv.on('plotly_relayout', function(eventdata) {
-                if (eventdata['xaxis.range[0]'] && eventdata['xaxis.range[1]']) {
-                    currentRange = [eventdata['xaxis.range[0]'], eventdata['xaxis.range[1]']];
-                    updateVisibleBeatsCount();
-                }
-            });
-            
-            // Validate samples input
-            document.getElementById('samples-form').addEventListener('submit', function(e) {
-                const samplesInput = document.getElementById('samples-input');
-                if (samplesInput.value > {{ total_samples }}) {
-                    e.preventDefault();
-                    samplesInput.value = {{ total_samples }};
-                    this.submit();
-                }
-            });
-            
-        } catch (error) {
-            console.error("ECG visualization error:", error);
-            const errorDiv = document.getElementById('ecg-plotly-graph');
-            errorDiv.innerHTML = `
-                <div class="alert-danger">
-                    <strong>Error:</strong> Failed to display ECG waveform.
-                    <p>${error.message}</p>
-                    <p>Please try again or contact support.</p>
-                </div>
-            `;
-        }
-    });
-</script>
-    <!-- Action Buttons Section -->
-    <div class="button-group">
-        <button onclick="generateReport()" class="btn btn-primary" id="reportBtn">
-            <i class="fas fa-file-pdf mr-2"></i>
-            <span id="btnText">Generate Full Report</span>
-            <span id="btnSpinner" class="spinner-border spinner-border-sm d-none" role="status"></span>
-        </button>
-        
-        <a href="{{ url_for('input_form') }}" class="button btn-secondary">
-            <i class="fas fa-arrow-left mr-2"></i> Back to Patient Search
-        </a>
-    </div>
 </div>
 
+<div id="ecg-debug" style="display: none;"></div>
+
 <script>
-function generateReport() {
-    const btn = document.getElementById('reportBtn');
-    const spinner = document.getElementById('btnSpinner');
-    const text = document.getElementById('btnText');
-    
-    // Show loading state
-    btn.disabled = true;
-    text.textContent = "Generating...";
-    spinner.classList.remove('d-none');
-    
     try {
-        // Submit form
-        document.getElementById('reportForm').submit();
-    } catch (error) {
-        console.error("Error generating report:", error);
-        // Fallback: redirect with basic parameters
-        window.location.href = `{{ url_for('generate_report', patient_id=patient.Patient_ID) }}?record_num={{ record_num }}&predicted_class={{ predicted_class }}`;
-    }
+        // Get the raw JSON string from template
+        console.log("Initializing ECG visualization...");
+        const rawPlotJson = '{{ plot_json | safe }}';
+        console.log("Raw JSON received from server:", rawPlotJson.substring(0, 100) + "...");
+        
+        // Parse the JSON
+        let plotData;
+        try {
+            plotData = JSON.parse(rawPlotJson);
+            console.log("Successfully parsed JSON data");
+        } catch (e) {
+            console.error("JSON parsing failed:", e);
+            throw new Error("Invalid JSON data received from server. " + e.message);
+        }
+        
+        // Validate plot data structure
+        if (!plotData || !plotData.data || !plotData.layout) {
+            throw new Error("Plot data missing required structure. Expected {data: [], layout: {}}");
+        }
+        
+        console.log("Full plot data structure:", plotData);
+        
+        // Handle ECG data decoding for bdata if present
+        if (plotData.data[0] && plotData.data[0].y && plotData.data[0].y.bdata) {
+            try {
+                const base64String = plotData.data[0].y.bdata;
+                console.log("Found base64 encoded data, attempting to decode...");
+                
+                // Decode base64 data
+                const binaryString = atob(base64String);
+                
+                // Create a buffer to hold the binary data
+                const bytes = new Uint8Array(binaryString.length);
+                for (let i = 0; i < binaryString.length; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                }
+                
+                // Convert to Float64Array (ECG data is typically float64)
+                const floatArray = new Float64Array(bytes.buffer);
+                
+                // Replace the y property with the decoded array
+                plotData.data[0].y = Array.from(floatArray);
+                
+                console.log("Successfully decoded ECG data, first few values:", 
+                    plotData.data[0].y.slice(0, 5));
+            } catch (e) {
+                console.error("Failed to decode ECG data:", e);
+                throw new Error("Error decoding ECG data: " + e.message);
+            }
+        } else {
+            console.log("No encoded data found or data already in proper format");
+        }
+        
+        // Ensure we have proper x-axis values if needed
+        if (plotData.data[0] && plotData.data[0].y && (!plotData.data[0].x || plotData.data[0].x.length === 0)) {
+            console.log("Generating x-axis values...");
+            plotData.data[0].x = Array.from({ length: plotData.data[0].y.length }, (_, i) => i);
+        }
+        
+        // Minimal modifications to preserve backend settings
+        if (plotData.data[0]) {
+            // Only set these if not already set
+            plotData.data[0].mode = plotData.data[0].mode || "lines";
+            plotData.data[0].type = plotData.data[0].type || "scatter";
+            
+            // Ensure line properties exist but don't override if already set
+            plotData.data[0].line = plotData.data[0].line || {};
+            plotData.data[0].line.color = plotData.data[0].line.color || 'rgb(0, 0, 0)';
+            plotData.data[0].line.width = plotData.data[0].line.width || 1.5;
+        }
+        
+        // Ensure the R-peaks trace (if exists) has proper styling
+        if (plotData.data[1]) {
+            plotData.data[1].mode = plotData.data[1].mode || "markers";
+            plotData.data[1].marker = plotData.data[1].marker || {
+                color: '#e74c3c',
+                size: 10,
+                line: { width: 2, color: '#333333' },
+                symbol: 'diamond'
+            };
+        }
+        
+        // Render the plot with minimal modifications
+        const graphDiv = document.getElementById('ecg-plotly-graph');
+
+        Plotly.newPlot(graphDiv, plotData.data, plotData.layout)
+            .then(function() {
+                console.log("Plotly graph rendered successfully");
+                updateVisibleBeatsCount();
+                
+                // After rendering, ensure the grid is visible
+                Plotly.relayout(graphDiv, {
+                    'xaxis.showgrid': true,
+                    'yaxis.showgrid': true,
+                    'xaxis.minor.showgrid': true,
+                    'yaxis.minor.showgrid': true
+                });
+            })
+            .catch(function(err) {
+                console.error("Plotly rendering failed:", err);
+                throw new Error("Failed to render ECG plot. " + err.message);
+            });
+        
+        // Track current zoom range
+        let currentRange = null;
+        
+        // Update visible beats count based on current view
+        function updateVisibleBeatsCount() {
+            if (!plotData.data[1] || !plotData.data[1].x) return;
+            
+            const layout = graphDiv.layout;
+            const xRange = layout.xaxis.range || [0, {{ samples_to_show }}];
+            
+            const visiblePeaks = plotData.data[1].x.filter(x => 
+                x >= xRange[0] && x <= xRange[1]
+            ).length;
+            
+            document.getElementById('visible-beats-count').textContent = visiblePeaks;
+        }
     
-    // Re-enable after timeout (fallback)
-    setTimeout(() => {
-        btn.disabled = false;
-        text.textContent = "Generate Full Report";
-        spinner.classList.add('d-none');
-    }, 5000);
-}
+        // Track zoom/pan events
+        graphDiv.on('plotly_relayout', function(eventdata) {
+            if (eventdata['xaxis.range[0]'] !== undefined && eventdata['xaxis.range[1]'] !== undefined) {
+                currentRange = [eventdata['xaxis.range[0]'], eventdata['xaxis.range[1]']];
+                updateVisibleBeatsCount();
+            } else if (eventdata['xaxis.autorange'] === true) {
+                currentRange = null;
+                updateVisibleBeatsCount();
+            }
+        });
+        
+    } catch (error) {
+        console.error("ECG visualization error:", error);
+        const errorDiv = document.getElementById('ecg-plotly-graph');
+        errorDiv.innerHTML = `
+            <div class="alert-danger">
+                <strong>Error:</strong> Failed to display ECG waveform.
+                <p>${error.message}</p>
+                <p>Please try again or contact support.</p>
+            </div>
+        `;
+    }
+
+    async function captureAndSaveECG() {
+        const btn = document.getElementById('reportBtn');
+        btn.disabled = true;
+        
+        try {
+            console.log('Starting ECG capture...');
+            const graphDiv = document.getElementById('ecg-plotly-graph');
+            
+            // Generate the image
+            const imgData = await Plotly.toImage(graphDiv, {
+                format: 'png',
+                width: 1000,
+                height: 500,
+                scale: 2
+            });
+            
+            console.log('ECG image generated, sending to server...');
+            
+            // Send to server
+            const response = await fetch('/save_ecg_image', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    image_data: imgData,
+                    patient_id: '{{ patient.Patient_ID }}',
+                    record_num: '{{ record_num }}'
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (!result.success) {
+                throw new Error(result.message || 'Failed to save ECG image');
+            }
+            
+            console.log('ECG image saved successfully:', result.path);
+            return result;
+            
+        } catch (error) {
+            console.error('ECG capture error:', error);
+            alert(`Error saving ECG image: ${error.message}`);
+            throw error;
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    async function generateReport() {
+        const btn = document.getElementById('reportBtn');
+        const spinner = document.getElementById('btnSpinner');
+        const text = document.getElementById('btnText');
+        
+        // Show loading state
+        btn.disabled = true;
+        text.textContent = "Generating...";
+        spinner.classList.remove('d-none');
+        
+        try {
+            // First capture the ECG image
+            const captureResult = await captureAndSaveECG();
+            
+            // Then submit the form with the image path
+            const form = document.getElementById('reportForm');
+            const imageInput = document.createElement('input');
+            imageInput.type = 'hidden';
+            imageInput.name = 'ecg_image';
+            imageInput.value = captureResult.path;
+            form.appendChild(imageInput);
+            
+            form.submit();
+        } catch (error) {
+            console.error("Error generating report:", error);
+            // Fallback without image
+            document.getElementById('reportForm').submit();
+        }
+    }
 </script>
 {% endblock %}

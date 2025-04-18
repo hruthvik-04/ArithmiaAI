@@ -1,8 +1,9 @@
-app.py
+a.py
 app1.py
 app3.py
 app4.py
 new.py
+app5.py
 ecg_analysis.py
 flask_app.py
 from flask import Flask, render_template.py
@@ -14,3 +15,7 @@ templates/dashboard.html
 templates/manual_analysis.html
 templates/result plotlyrun.html
 templates/RESULT1.html
+templates/plotlyrun.html
+templates/resulttemplate.html
+templates/ecg_waveform.html
+templates/index.html
