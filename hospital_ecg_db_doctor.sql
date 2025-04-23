@@ -1,3 +1,5 @@
+CREATE DATABASE  IF NOT EXISTS `hospital_ecg_db` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci */ /*!80016 DEFAULT ENCRYPTION='N' */;
+USE `hospital_ecg_db`;
 -- MySQL dump 10.13  Distrib 8.0.41, for Win64 (x86_64)
 --
 -- Host: 127.0.0.1    Database: hospital_ecg_db
@@ -37,7 +39,7 @@ CREATE TABLE `doctor` (
 
 LOCK TABLES `doctor` WRITE;
 /*!40000 ALTER TABLE `doctor` DISABLE KEYS */;
-INSERT INTO `doctor` VALUES ('DR-001-2024','hruthvi','$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGgaYlJW'),('DR-002-2024','HRUTHVIK','$2b$12$Ei7rVxrjAW32IJujwDtPQuUs21e26iIcQqhNHqx46UlTNOG5E2ffW'),('DR-004-2024','hruthv','1234556789'),('DR-009-2024','hruthik','$2b$12$9YzlKL6HEYwXJ0QMX3zP7.HYc3iEa938jzUqvyf/v3FfMSQu8fnxm'),('DR-012-2024','dr_john','$2b$12$ovLiN8.a9Na.a.NtVyDr5OVvMAnWMJjOQvL6igH6H5vKxIT6cxcgC');
+INSERT INTO `doctor` VALUES ('DR-001-2024','hruthvi','$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGgaYlJW'),('DR-002-2024','HRUTHVIK','$2b$12$Ei7rVxrjAW32IJujwDtPQuUs21e26iIcQqhNHqx46UlTNOG5E2ffW'),('DR-004-2024','hruthv','1234556789'),('DR-009-2024','Hruthik','$2b$12$9YzlKL6HEYwXJ0QMX3zP7.HYc3iEa938jzUqvyf/v3FfMSQu8fnxm'),('DR-012-2024','dr_john','$2b$12$ovLiN8.a9Na.a.NtVyDr5OVvMAnWMJjOQvL6igH6H5vKxIT6cxcgC');
 /*!40000 ALTER TABLE `doctor` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -50,4 +52,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2025-04-05 18:50:56
+-- Dump completed on 2025-04-23 11:16:50

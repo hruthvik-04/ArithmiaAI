@@ -61,35 +61,64 @@
         color: white;
     }
     
-    .loading-spinner {
-        border: 5px solid #f3f3f3;
-        border-top: 5px solid #3498db;
-        border-radius: 50%;
-        width: 50px;
-        height: 50px;
-        animation: spin 1s linear infinite;
-        margin-bottom: 20px;
+    .progress-container {
+        width: 80%;
+        max-width: 400px;
+        margin: 20px 0;
     }
     
-    @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
+    .progress-bar-horizontal {
+        width: 100%;
+        height: 20px;
+        background-color: #444;
+        border-radius: 10px;
+        overflow: hidden;
+    }
+    
+    .progress-fill {
+        height: 100%;
+        width: 0%;
+        background: linear-gradient(90deg, #3498db, #2ecc71);
+        transition: width 0.5s ease;
     }
     
     .loading-steps {
         text-align: center;
         margin-top: 20px;
-        max-width: 300px;
+        max-width: 700px;
+        width: 90%;
     }
     
     .loading-step {
-        margin: 10px 0;
+        margin: 20px 0;
         opacity: 0.5;
         transition: opacity 0.3s;
+        font-size: 1.5rem;
+        font-weight: 500;
     }
     
     .loading-step.active {
         opacity: 1;
+        font-weight: bold;
+        font-size: 1.6rem;
+    }
+    
+    .analysis-substeps {
+        margin: 20px 0 25px 30px;
+        border-left: 3px solid #3498db;
+        padding-left: 20px;
+        text-align: centre;
+    }
+    
+    .substep {
+        margin: 15px 0;
+        color: #bbb;
+        font-size: 1.2rem;
+        transition: all 0.3s;
+    }
+    
+    .substep.active {
+        color: white;
         font-weight: bold;
     }
     
@@ -102,6 +131,13 @@
     /* Hide ECG plot during loading */
     #ecg-plot.loading {
         display: none;
+    }
+    
+    .loading-title {
+        font-size: 2.2rem;
+        margin-bottom: 20px;
+        font-weight: 600;
+        text-align: center;
     }
 </style>
 
@@ -170,13 +206,13 @@
                                     <label class="form-label">Select ECG Record</label>
                                     <select name="record_num" class="form-select" required>
                                         <option value="">Select a record...</option>
-                                        {% for i in range(100, 235) %}
-                                            {% if i not in [102, 104, 107, 217] %}
-                                                <option value="{{ i }}" {% if request.form.get('record_num') == i|string %}selected{% endif %}>
-                                                    Record {{ i }}
-                                                </option>
-                                            {% endif %}
-                                        {% endfor %}
+                                        
+                                        {% for i in [100, 103, 105, 111, 124, 200, 205,207] %}
+                                        <option value="{{ i }}" {% if request.form.get('record_num') == i|string %}selected{% endif %}>
+                                            Record {{ i }}
+                                        </option>
+                                    {% endfor %}
+                                     
                                     </select>
                                 </div>
                                 
@@ -240,14 +276,25 @@
 
 <!-- Loading Overlay -->
 <div id="loadingModal" class="loading-overlay" style="display: none;">
-    <div class="loading-spinner"></div>
-    <h3>Analyzing ECG Data...</h3>
+    <div class="loading-title">AI-Based ECG Analysis In Progress</div>
+    <div class="progress-container">
+        <div class="progress-bar-horizontal">
+            <div class="progress-fill"></div>
+        </div>
+    </div>
     <div class="loading-steps">
-        <div id="step1" class="loading-step">Fetching ECG Data</div>
-        <div id="step2" class="loading-step">Preprocessing Signal</div>
-        <div id="step3" class="loading-step">Detecting Heartbeats</div>
-        <div id="step4" class="loading-step">Running Analysis</div>
-        <div id="step5" class="loading-step">Generating Report</div>
+        <div id="step1" class="loading-step">Initializing AI Engine & Loading ECG Data</div>
+        <div id="step2" class="loading-step">AI-Powered Signal Preprocessing</div>
+        <div id="step3" class="loading-step">Heartbeat Detection</div>
+        <div id="step4" class="loading-step">Running Deep Learning Analysis</div>
+            <div class="analysis-substeps">
+                <div class="substep">Step 1: Intelligent ECG Preprocessing & Normalization</div>
+                <div class="substep">Step 2: AI-Driven Class Balancing and Data Augmentation</div>
+                <div class="substep">Step 3: Deep CNN Model Execution</div>
+                <div class="substep">Step 4: VF-Focused AI Training Integration</div>
+                <div class="substep">Step 5: Predictive Insights & Report Generation </div>
+            </div>
+        <div id="step5" class="loading-step"> </div>
     </div>
 </div>
 
@@ -283,16 +330,19 @@
             const ecgPlot = document.getElementById('ecg-plot');
             if (ecgPlot) ecgPlot.classList.add('loading');
             
+            // Get progress elements
+            const progressFill = document.querySelector('.progress-fill');
+            const substeps = document.querySelectorAll('.substep');
+            
             // Animate steps with delays
             const steps = ['step1', 'step2', 'step3', 'step4', 'step5'];
             const stepTexts = [
-                "Fetching ECG Data",
-                "Preprocessing Signal",
+                "Initializing AI Engine & Loading ECG Data",
+                "AI-Powered Signal Preprocessing",
                 "Detecting Heartbeats",
-                "Running Analysis",
-                "Generating Report"
+                "Running Deep Learning Analysis",
+                " "
             ];
-            const stepDelays = [1000, 2000, 3000, 4000, 5000]; // 1 second intervals
             
             // Reset all steps first
             steps.forEach(stepId => {
@@ -300,6 +350,9 @@
                 step.classList.remove('active');
                 step.textContent = stepTexts[steps.indexOf(stepId)];
             });
+            
+            // Reset substeps
+            substeps.forEach(substep => substep.classList.remove('active'));
             
             // Activate steps sequentially with delays
             steps.forEach((stepId, index) => {
@@ -314,10 +367,24 @@
                     // Activate current step
                     step.classList.add('active');
                     
+                    // Update progress bar
+                    progressFill.style.width = `${(index + 1) * 20}%`;
+                    
+                    // Special handling for analysis step (step4)
+                    if (index === 3) {
+                        // Animate substeps
+                        substeps.forEach((substep, subIndex) => {
+                            setTimeout(() => {
+                                substep.classList.add('active');
+                            }, subIndex * 800);
+                        });
+                    }
+                    
                     // Special case for last step
                     if (index === steps.length - 1) {
                         setTimeout(() => {
-                            step.textContent = "Finalizing results...";
+                            step.textContent = " ";
+                            progressFill.style.width = "100%";
                             
                             // After all steps complete, submit the form
                             setTimeout(() => {
@@ -326,7 +393,7 @@
                             }, 1000);
                         }, 500);
                     }
-                }, stepDelays[index]);
+                }, index * 2000); // 2 second intervals
             });
         });
     });

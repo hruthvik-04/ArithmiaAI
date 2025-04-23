@@ -31,11 +31,13 @@
     position: relative; /* For positioning error messages */
   }
 
-  .form-control.invalid {
+  .form-control.invalid,
+  .form-select.invalid {
     border-color: #dc3545;
   }
 
-  .form-control.valid {
+  .form-control.valid,
+  .form-select.valid {
     border-color: #28a745;
   }
 
@@ -61,8 +63,6 @@
         </div>
         <div class="card-body">
           {% if patient %}
-          
-          </div>
           <div class="card">
             <div class="card-header">
               <h5 class="card-title">Registered Patient Details</h5>
@@ -76,7 +76,7 @@
               <p class="card-text"><strong>Email:</strong> {{ patient.Email_ID }}</p>
               <p class="card-text"><strong>Personal Contact:</strong> {{ patient.Personal_Contact }}</p>
               <p class="card-text"><strong>Emergency Contact:</strong> {{ patient.Emergency_Contact }}</p>
-              <p class="card-text"><strong>Doctor ID:</strong> {{ patient.Doctor_ID }}</p>
+              <p class="card-text"><strong>Doctor:</strong> {{ patient.Doctor_Name }} ({{ patient.Doctor_ID }})</p>
               <p class="card-text"><strong>Registered on:</strong> {{ patient.Created_At }}</p>
               <p class="card-text"><strong>Registered by:</strong> {{ patient.Staff_Username }}</p>
               <a href="{{ url_for('patient_registration') }}" class="btn btn-secondary">Register New Patient</a>
@@ -122,7 +122,6 @@
               </div>
             </div>
 
-           
             <div class="form-group">
               <label for="Address" class="form-label">Address:</label>
               <textarea id="Address" name="Address" class="form-control {% if errors.Address %}invalid{% endif %}" rows="3" required>{{ form_data.Address if form_data else '' }}</textarea>
@@ -169,10 +168,16 @@
             </div>
 
             <div class="form-group">
-              <label for="Doctor_ID" class="form-label">Attending Doctor ID (Format: DR-001-2024):</label>
-              <input type="text" id="Doctor_ID" name="Doctor_ID" class="form-control {% if errors.Doctor_ID %}invalid{% endif %}" 
-                     pattern="DR-\d{3}-\d{4}" title="Format: DR-001-2024" 
-                     value="{{ form_data.Doctor_ID if form_data else '' }}" required>
+              <label for="Doctor_ID" class="form-label">Attending Doctor:</label>
+              <select id="Doctor_ID" name="Doctor_ID" class="form-select {% if errors.Doctor_ID %}invalid{% endif %}" required>
+                <option value="" selected disabled>Select Doctor</option>
+                {% for doctor in doctors %}
+                <option value="{{ doctor.Doctor_ID }}" 
+                        {% if form_data and form_data.Doctor_ID == doctor.Doctor_ID %}selected{% endif %}>
+                  {{ doctor.Username }} ({{ doctor.Doctor_ID }})
+                </option>
+                {% endfor %}
+              </select>
               <div class="error-message field-error">
                 {% if errors.Doctor_ID %}
                   {{ errors.Doctor_ID }}
@@ -200,71 +205,73 @@ document.addEventListener('DOMContentLoaded', function() {
     form.addEventListener('submit', function(event) {
       let isValid = true;
       
-      
-      document.querySelectorAll('.form-control').forEach(function(input) {
+      // Reset validation states
+      document.querySelectorAll('.form-control, .form-select').forEach(function(input) {
         input.classList.remove('valid', 'invalid');
       });
       document.querySelectorAll('.error-message').forEach(function(errorDiv) {
         errorDiv.style.display = 'none';
       });
 
-     
+      // Validate patient name
       const patientName = document.getElementById('Patient_Name');
       if (!patientName.value.trim()) {
         showError(patientName, "Please enter the patient's full name.");
         isValid = false;
       }
 
-      
+      // Validate age
       const age = document.getElementById('Age');
       if (!age.value || age.value < 1 || age.value > 150) {
         showError(age, "Please enter a valid age between 1 and 150.");
         isValid = false;
       }
 
+      // Validate gender
       const gender = document.getElementById('Gender');
       if (!gender.value) {
         showError(gender, "Please select a gender.");
         isValid = false;
       }
 
+      // Validate address
       const address = document.getElementById('Address');
       if (!address.value.trim()) {
         showError(address, "Please enter the patient's address.");
         isValid = false;
       }
 
-   
+      // Validate email
       const email = document.getElementById('Email_ID');
       if (!email.validity.valid) {
         showError(email, "Please enter a valid email address.");
         isValid = false;
       }
 
-    
+      // Validate personal contact
       const personalContact = document.getElementById('Personal_Contact');
       if (!personalContact.value.match(/^\d{10}$/)) {
         showError(personalContact, "Please enter a valid 10-digit phone number.");
         isValid = false;
       }
 
-      
+      // Validate emergency contact
       const emergencyContact = document.getElementById('Emergency_Contact');
       if (!emergencyContact.value.match(/^\d{10}$/)) {
         showError(emergencyContact, "Please enter a valid 10-digit phone number.");
         isValid = false;
       }
 
-      
+      // Check if contacts are different
       if (personalContact.value === emergencyContact.value) {
         showError(emergencyContact, "Personal contact and emergency contact cannot be the same.");
         isValid = false;
       }
 
- 
+      // Validate doctor selection
       const doctorID = document.getElementById('Doctor_ID');
-      if (!doctorID.value.match(/^DR-\d{3}-\d{4}$/)) {
-        showError(doctorID, "Please enter a valid doctor ID in the format DR-001-2024.");
+      if (!doctorID.value) {
+        showError(doctorID, "Please select a doctor.");
         isValid = false;
       }
 

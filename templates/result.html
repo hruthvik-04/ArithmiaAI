@@ -99,14 +99,74 @@
         padding: 15px;
         border-radius: 8px;
         margin: 15px 0;
-        background-color: rgba(46, 204, 113, 0.1);
-        color: #27ae60;
-        border-left: 5px solid #27ae60;
+        background-color: rgba(19, 135, 218, 0.517);
+        color: #060d16;
+        border-left: 5px solid #111dcc;
+    }
+    /* Risk Score Cards */
+    .score-card {
+        background: white;
+        border-radius: 8px;
+        padding: 15px;
+        box-shadow: var(--shadow);
+        grid-column: span 1;
+    }
+    .score-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+    }
+    .score-header h3 {
+        font-size: 16px;
+        color: var(--secondary-color);
+        margin: 0;
+    }
+    .score-value {
+        font-size: 18px;
+        font-weight: bold;
+    }
+   
+    .score-description {
+        font-size: 13px;
+        color: #7f8c8d;
+        margin-bottom: 12px;
+    }
+    .risk-meter {
+        height: 8px;
+        background: #ecf0f1;
+        border-radius: 4px;
+        margin-bottom: 8px;
+        overflow: hidden;
+    }
+    .meter-fill {
+        height: 100%;
+        transition: width 0.5s ease;
+    }
+    .framingham .meter-fill {
+        background: #3498db;
+    }
+    .grace .meter-fill {
+        background: #9b59b6;
+    }
+    .risk-category {
+        font-size: 14px;
+        font-weight: 600;
+        text-align: right;
+    }
+    .low-risk {
+        color: var(--success-color);
+    }
+    .intermediate-risk {
+        color: var(--warning-color);
+    }
+    .high-risk {
+        color: var(--danger-color);
     }
     .risk-metrics {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-        gap: 12px;
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+        gap: 15px;
         margin-top: 15px;
     }
     .metric-card {
@@ -345,7 +405,7 @@
                 <button onclick="generateReport()" class="button btn-primary" id="reportBtn">
                     <i class="fas fa-file-pdf"></i> 
                     <span id="btnText">Generate Full Report</span>
-            <span id="btnSpinner" class="spinner-border spinner-border-sm d-none" role="status"></span>
+                    <span id="btnSpinner" class="spinner-border spinner-border-sm d-none" role="status"></span>
                 </button>
                 <a href="{{ url_for('input_form') }}" class="button btn-secondary">
                     <i class="fas fa-arrow-left"></i> Back to Patient Search
@@ -362,18 +422,54 @@
                     {{ predicted_class }} ({{ "%.2f"|format(confidence) }}% confidence)
                 </div>
                 <div class="risk-metrics">
-                    <div class="metric-card">
-                        <span class="metric-label">Framingham Risk</span>
-                        <span class="metric-value">
-                            {{ framingham_risk|round(2) }}%
-                        </span>
+                    <!-- Framingham Risk Card -->
+                    <div class="score-card framingham">
+                        <div class="score-header">
+                            <h3>Framingham Risk</h3>
+                            <div class="score-value 
+                                {% if framingham_risk < 10 %}low-risk
+                                {% elif framingham_risk < 20 %}intermediate-risk
+                                {% else %}high-risk
+                                {% endif %}">
+                                {{ "%.1f"|format(framingham_risk) }}%
+                            </div>
+                        </div>
+                       
+                        <div class="risk-category">
+                            {% if framingham_risk < 10 %}
+                                <span class="low-risk">Low Risk</span>
+                            {% elif framingham_risk < 20 %}
+                                <span class="intermediate-risk">Intermediate Risk</span>
+                            {% else %}
+                                <span class="high-risk">High Risk</span>
+                            {% endif %}
+                        </div>
                     </div>
-                    <div class="metric-card">
-                        <span class="metric-label">GRACE Score</span>
-                        <span class="metric-value">
-                            {{ grace_score|round(2) }}%
-                        </span>
+                    
+                    <!-- GRACE Score Card -->
+                    <div class="score-card grace">
+                        <div class="score-header">
+                            <h3>GRACE Score</h3>
+                            <div class="score-value 
+                                {% if grace_score < 3 %}low-risk
+                                {% elif grace_score < 8 %}intermediate-risk
+                                {% else %}high-risk
+                                {% endif %}">
+                                {{ "%.1f"|format(grace_score) }}%
+                            </div>
+                        </div>
+                        
+                        <div class="risk-category">
+                            {% if grace_score < 3 %}
+                                <span class="low-risk">Low Risk</span>
+                            {% elif grace_score < 8 %}
+                                <span class="intermediate-risk">Intermediate Risk</span>
+                            {% else %}
+                                <span class="high-risk">High Risk</span>
+                            {% endif %}
+                        </div>
                     </div>
+                    <!-- Other Metrics -->
                     <div class="metric-card">
                         <span class="metric-label">Heart Rate</span>
                         <span class="metric-value">

@@ -1,56 +1,73 @@
-from flask import Flask, render_template, request, jsonify, send_from_directory, flash, redirect, url_for, session
-from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+import os
+import re 
+import json
+import uuid
+import traceback
+import time
+import logging 
+from io import BytesIO
+from datetime import datetime
+from functools import wraps
+import base64
+import urllib.parse 
+from flask import (Flask, render_template, request, jsonify, send_from_directory,
+                   flash, redirect, url_for, session, make_response, abort)
+from flask_login import (LoginManager, UserMixin, login_user, login_required,
+                       logout_user, current_user)
 from flask_bcrypt import Bcrypt
 from flask_mysqldb import MySQL
 import MySQLdb.cursors
 import numpy as np
-import wfdb
-import matplotlib.pyplot as plt
-from tensorflow.keras.models import load_model
-from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
-from scipy.signal import butter, filtfilt, find_peaks
-import neurokit2 as nk
-from scipy.signal import find_peaks
-import os
-import pandas as pd
-from reportlab.lib.utils import ImageReader
-import uuid
-from datetime import datetime
-from flask import make_response
-import re
-from functools import wraps
-from flask import abort
-import pytz
-import plotly.graph_objects as go
-import json
+import pandas as pd 
+import pytz 
 import plotly
-import traceback
-import time
-from io import BytesIO
-from xhtml2pdf import pisa
-import matplotlib.pyplot as plt
-import base64
+import plotly.graph_objects as go
+from tensorflow.keras.models import load_model
+from scipy.signal import butter, filtfilt, find_peaks 
+import wfdb
+import neurokit2 as nk 
+try:
+    from xhtml2pdf import pisa
+    PDF_GENERATION_AVAILABLE = True
+except ImportError:
+    pisa = None
+    PDF_GENERATION_AVAILABLE = False
+    print("WARNING: xhtml2pdf library not found. PDF report downloads will be disabled.")
+
+
 
 app = Flask(__name__, static_folder='static')
 
-# Configuration
-app.secret_key = "5010dfae019e413f06691431b2e3ba82bbb456c661b0d27332a4dbd5bbd36bd8"
-app.config["MYSQL_HOST"] = "localhost"
-app.config["MYSQL_USER"] = "root"
-app.config["MYSQL_PASSWORD"] = "452003@hrX"
-app.config["MYSQL_DB"] = "hospital_ecg_db"
-app.config["MYSQL_CURSORCLASS"] = "DictCursor"
-app.config['STATIC_FOLDER'] = os.path.join(app.root_path, 'static')
+# --- Configuration ---
 
-mysql = MySQL(app)
-bcrypt = Bcrypt(app)
-login_manager = LoginManager()
-login_manager.init_app(app)
+app.secret_key = os.environ.get("SECRET_KEY", "5010dfae019e413f06691431b2e3ba82bbb456c661b0d27332a4dbd5bbd36bd8") 
+app.config["MYSQL_HOST"] = os.environ.get("MYSQL_HOST", "localhost")
+app.config["MYSQL_USER"] = os.environ.get("MYSQL_USER", "root")
+app.config["MYSQL_PASSWORD"] = os.environ.get("MYSQL_PASSWORD", "452003@hrX")
+app.config["MYSQL_DB"] = os.environ.get("MYSQL_DB", "hospital_ecg_db")
+app.config["MYSQL_CURSORCLASS"] = "DictCursor" 
 
-DATASET_PATH = "mit-bih-arrhythmia-database-1.0.0/"
-MODEL_PATH = os.path.join('model', 'ecg_arrhythmia_detector_20250331_165229.h5')
+# --- Paths Configuration ---
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+app.config['STATIC_FOLDER'] = os.path.join(BASE_DIR, 'static')
+DATASET_PATH = os.path.join(BASE_DIR, "mit-bih-arrhythmia-database-1.0.0/")
+MODEL_PATH = os.path.join(BASE_DIR, 'model', 'ecg_arrhythmia_detector_20250331_165229.h5')
+ECG_IMAGE_DIR = os.path.join(app.config['STATIC_FOLDER'], 'ecg_images')
 
+
+try:
+    os.makedirs(app.config['STATIC_FOLDER'], exist_ok=True)
+    os.makedirs(ECG_IMAGE_DIR, exist_ok=True)
+except OSError as e:
+    app.logger.error(f"Could not create static directories: {e}")
+    
+
+# --- Constants ---
+MODEL_INPUT_LENGTH = 180
+DEFAULT_ECG_DISPLAY_SAMPLES = 2000
+TARGET_TIMEZONE = 'Asia/Kolkata'
+
+# Arrhythmia Class Definitions 
 CLASSES = {
     0: {'id': 'N', 'name': 'Normal', 'weight': 1, 'color': '#2ecc71'},
     1: {'id': 'S', 'name': 'SVT', 'weight': 100, 'color': '#e67e22'},
@@ -61,164 +78,473 @@ CLASSES = {
     6: {'id': 'F', 'name': 'Fusion', 'weight': 80, 'color': '#a67c52'}
 }
 
+
+mysql = MySQL(app)
+bcrypt = Bcrypt(app)
+login_manager = LoginManager()
+login_manager.init_app(app)
+# Configure Flask-Login settings
+login_manager.login_view = 'staff_login'
+login_manager.login_message = u"Please log in to access this page."
+login_manager.login_message_category = "info"
+
+# --- ML Model Loading ---
+model = None
 try:
     if not os.path.exists(MODEL_PATH):
-        raise FileNotFoundError(f"Model file not found at {MODEL_PATH}")
-    
+        app.logger.error(f"Model file not found at specified path: {MODEL_PATH}")
+        raise FileNotFoundError(f"Model file not found: {MODEL_PATH}")
     model = load_model(MODEL_PATH)
-    print("Model loaded successfully")
-    
-    # Try a dummy prediction to verify the model works
-    dummy_input = np.random.rand(1, 180, 1)
-    dummy_pred = model.predict(dummy_input)
-    print("Model test prediction successful")
-    
+    app.logger.info(f"ML Model loaded successfully from {MODEL_PATH}")
+    # model.predict(np.random.rand(1, MODEL_INPUT_LENGTH, 1), verbose=0)
+    # app.logger.info("Model test prediction successful.")
 except Exception as e:
-    print(f"CRITICAL ERROR: Failed to load model: {str(e)}")
-    print(traceback.format_exc())
-    # In production, you might want to exit here
-    # import sys; sys.exit(1)
-    model = None
+    
+    app.logger.critical(f"FAILED TO LOAD ML MODEL: {e}", exc_info=True)
+    # raise RuntimeError("Critical ML Model failed to load. Application cannot start.") from e
 
 
+# --- User Class and Authentication ---
 class User(UserMixin):
+    
     def __init__(self, id, username=None, user_type=None):
         self.id = id
         self.username = username
-        self.user_type = user_type
-    
+        self.user_type = user_type # 'staff' or 'doctor'
+
     def get_type(self):
         return self.user_type
 
 @login_manager.user_loader
 def load_user(user_id):
-    cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
-    try:
-        if user_id.startswith('DR-'):
-            cursor.execute("SELECT * FROM doctor WHERE Doctor_ID = %s", (user_id,))
-            doctor = cursor.fetchone()
-            if doctor:
-                return User(
-                    id=str(doctor["Doctor_ID"]),
-                    username=doctor["Username"],
-                    user_type="doctor"
-                )
-        else:
-            cursor.execute("SELECT * FROM staff WHERE Staff_ID = %s", (user_id,))
-            staff = cursor.fetchone()
-            if staff:
-                return User(
-                    id=staff["Staff_ID"],
-                    username=staff["StaffName"],
-                    user_type="staff"
-                )
-    except MySQLdb.Error as e:
-        print(f"Database error: {e}")
-    finally:
-        cursor.close()
-    return None
+    app.logger.debug(f"Attempting to load user with ID: {user_id}")
+    is_doctor = str(user_id).startswith('DR-')
+    table = "doctor" if is_doctor else "staff"
+    id_column = "Doctor_ID" if is_doctor else "Staff_ID"
+    username_column = "Username" if is_doctor else "StaffName"
 
+    
+    user_data = db_fetch_one(f"SELECT * FROM {table} WHERE {id_column} = %s", (user_id,))
+
+    if user_data:
+        user_obj = User(
+            id=str(user_data[id_column]),
+            username=user_data[username_column],
+            user_type="doctor" if is_doctor else "staff"
+        )
+        app.logger.debug(f"User {user_id} loaded successfully as {user_obj.user_type}.")
+        return user_obj
+    else:
+        app.logger.warning(f"User ID {user_id} not found in database during session load.")
+        return None 
+    
 def doctor_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if not current_user.is_authenticated or current_user.user_type != "doctor":
-            abort(403)
+        
+        if not current_user.is_authenticated:
+            flash("Please log in to access this page.", "info")
+            return redirect(url_for('doctor_login', next=request.url)) 
+        
+        if current_user.user_type != "doctor":
+            app.logger.warning(f"Unauthorized access attempt to doctor route by {current_user.user_type} user: {current_user.id}")
+            flash("You do not have permission to view this page.", "danger")
+            
+            if current_user.user_type == 'staff':
+                return redirect(url_for('patient_registration'))
+            else: 
+                abort(403) 
+        
         return f(*args, **kwargs)
     return decorated_function
 
-def load_ecg_sample(record_num):
-    try:
-        record_path = f"{DATASET_PATH}{record_num}"
-        # record_path = "E:/mindteck project/mit-bih-arrhythmia-database-1.0.0/100"
-        print("record: ",record_path)
-        record = wfdb.rdrecord(record_path)
-        print(f"Attempting to load record from: {record_path}") # Debug print
 
-        # Check if the necessary files exist (.dat, .hea, .atr)
-        if not os.path.exists(f"{record_path}.dat"):
-             raise FileNotFoundError(f"ECG data file not found: {record_path}.dat")
-        if not os.path.exists(f"{record_path}.hea"):
-             raise FileNotFoundError(f"ECG header file not found: {record_path}.hea")
+
+def db_execute(sql, params=(), commit=False):
+    cursor = None 
+    try:
+        cursor = mysql.connection.cursor()
+        app.logger.debug(f"Executing SQL: {cursor.mogrify(sql, params)}") 
+        cursor.execute(sql, params)
+        if commit:
+            mysql.connection.commit()
+            app.logger.debug("DB transaction committed.")
+        return cursor 
+    except MySQLdb.Error as db_err:
+        
+        app.logger.error(f"Database Error: {db_err}\nSQL: {cursor.mogrify(sql, params) if cursor else sql}", exc_info=True)
+        if mysql.connection:
+            mysql.connection.rollback() 
+            app.logger.warning("DB transaction rolled back due to error.")
+        raise
+    finally:
+        if cursor:
+            cursor.close() 
+
+def db_fetch_one(sql, params=()):
+    
+    cursor = None
+    try:
+        
+        cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
+        app.logger.debug(f"Fetching one: {cursor.mogrify(sql, params)}")
+        cursor.execute(sql, params)
+        result = cursor.fetchone()
+        return result
+    except MySQLdb.Error as db_err:
+        app.logger.error(f"Database Error: {db_err}\nSQL: {cursor.mogrify(sql, params) if cursor else sql}", exc_info=True)
+        return None 
+    finally:
+        if cursor:
+            cursor.close()
+
+def db_fetch_all(sql, params=()):
+    
+    cursor = None
+    try:
+        cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
+        app.logger.debug(f"Fetching all: {cursor.mogrify(sql, params)}")
+        cursor.execute(sql, params)
+        results = cursor.fetchall()
+        return results
+    except MySQLdb.Error as db_err:
+        app.logger.error(f"Database Error: {db_err}\nSQL: {cursor.mogrify(sql, params) if cursor else sql}", exc_info=True)
+        return [] # Return empty list on error
+    finally:
+        if cursor:
+            cursor.close()
+
+
+
+
+def _format_datetime_helper(value, fmt, tz_name):
+    
+    if value is None: return "" 
+
+    
+    if not isinstance(value, datetime):
+        try:
+            
+            value = datetime.strptime(str(value), '%Y-%m-%d %H:%M:%S')
+        except (ValueError, TypeError):
+            
+            app.logger.warning(f"Filter received non-datetime/unparsable value: '{value}' (type: {type(value)})")
+            return str(value)
+
+    try:
+        target_tz = pytz.timezone(tz_name)
+    except pytz.UnknownTimeZoneError:
+        app.logger.error(f"Invalid timezone '{tz_name}' specified in filter. Using UTC fallback.")
+        target_tz = pytz.utc 
+
+   
+    if value.tzinfo is None or value.tzinfo.utcoffset(value) is None:
+        
+        aware_value = pytz.utc.localize(value).astimezone(target_tz)
+    else:
        
+        aware_value = value.astimezone(target_tz)
+
+    return aware_value.strftime(fmt)
+
+@app.template_filter('format_reg_date')
+def format_datetime_date(value, format="%d %B %Y", tz_name=TARGET_TIMEZONE):
+    """ Format (e.g., 21 April 2025)"""
+    return _format_datetime_helper(value, format, tz_name)
+
+@app.template_filter('format_reg_time')
+def format_datetime_time(value, format="%I:%M:%S %p", tz_name=TARGET_TIMEZONE):
+    """Format  (e.g., 10:30:45 AM)"""
+    return _format_datetime_helper(value, format, tz_name)
+
+
+@app.context_processor
+def utility_processor():
+    return dict(
+        pytz=pytz, 
+        url_quote_plus=urllib.parse.quote_plus 
+    )
+
+
+# --- ECG Processing & ML Helpers ---
+
+def load_ecg_sample(record_num_str):
+    
+    record_num = str(record_num_str).strip()
+    if not record_num:
+        flash("ECG Record number cannot be empty.", "danger")
+        return None, None, None, None
+
+    record_path = os.path.join(DATASET_PATH, record_num)
+    app.logger.info(f"Attempting to load ECG record: {record_path}")
+
+    if not os.path.exists(f"{record_path}.dat") or not os.path.exists(f"{record_path}.hea"):
+        msg = f"Required ECG file (.dat or .hea) not found for record '{record_num}'. Check path."
+        app.logger.error(msg)
+        flash(msg, "danger")
+        return None, None, None, None
+
+    try:
         record = wfdb.rdrecord(record_path)
+        if record.p_signal is None or record.p_signal.shape[1] == 0:
+            raise ValueError("No signal data found in record file.")
+
+        signal = record.p_signal[:, 0]
+        fs = record.fs
+        symbols, samples = [], []
         try:
             annotation = wfdb.rdann(record_path, 'atr')
             symbols = annotation.symbol
             samples = annotation.sample
         except FileNotFoundError:
-            print(f"Annotation file (.atr) not found for record {record_num}, proceeding without annotations.")
-            symbols = []
-            samples = []
+            app.logger.info(f"Annotation file (.atr) optional, not found for record {record_num}.")
         except Exception as e_ann:
-            print(f"Error reading annotation file for {record_num}: {e_ann}")
-            symbols = []
-            samples = []
+            app.logger.warning(f"Error reading annotations for {record_num}: {e_ann}")
 
+        app.logger.info(f"Successfully loaded record {record_num} (fs={fs}, {len(signal)} samples).")
+        return signal, fs, symbols, samples
 
-        # Ensure p_signal is not None and has columns
-        if record.p_signal is None or record.p_signal.shape[1] == 0:
-            raise ValueError(f"No signal data found in record {record_num}")
-
-        # Return the first channel (index 0), fs, symbols, and samples
-        return record.p_signal[:, 0], record.fs, symbols, samples
-    
-    except FileNotFoundError as fnf_err:
-        print(f"Error loading ECG sample {record_num}: {fnf_err}")
-        flash(f"Error: Could not find ECG record files for '{record_num}'. Please check the record number and data path.", "danger")
-        return None, None, None, None # Return None for all values on error
+    except ValueError as ve: 
+         app.logger.error(f"Value error loading record {record_num}: {ve}")
+         flash(f"Error in ECG file data for record '{record_num}'.", "danger")
+         return None, None, None, None
     except Exception as e:
-        print(f"Error loading ECG sample {record_num}: {e}")
-        flash(f"Error loading ECG record '{record_num}': {e}", "danger")
-        return None, None, None, None # Return None for all values on error
+        app.logger.error(f"Unexpected error loading ECG record {record_num}: {e}", exc_info=True)
+        flash(f"Failed to load ECG record '{record_num}'. An unexpected error occurred.", "danger")
+        return None, None, None, None
+
 
 def check_ecg_quality(ecg_signal, fs):
-    """Basic ECG signal quality checks"""
-    if len(ecg_signal) < fs:  # Less than 1 second of data
-        return False, "Signal too short"
     
-    if np.max(ecg_signal) - np.min(ecg_signal) < 0.1:  # Flat line
-        return False, "Signal amplitude too low"
-    
-    return True, "Signal quality OK"
+    if len(ecg_signal) < fs: return False, 
+    if np.max(ecg_signal) - np.min(ecg_signal) < 0.1: return False, 
+    return True,
+
 
 def butterworth_filter(signal, cutoff=50, fs=360, order=4):
+    
     try:
         nyquist = 0.5 * fs
+        if cutoff >= nyquist:
+            app.logger.warning(f"Filter cutoff {cutoff}Hz >= Nyquist {nyquist}Hz. Skipping filter.")
+            return signal
         normal_cutoff = cutoff / nyquist
         b, a = butter(order, normal_cutoff, btype='low', analog=False)
         return filtfilt(b, a, signal)
     except Exception as e:
-        print(f"Error applying Butterworth filter: {e}")
-        return signal
-    
+        app.logger.error(f"Error during Butterworth filtering: {e}", exc_info=True)
+        return signal 
+
 def detect_r_peaks(ecg_signal, fs):
     try:
-        # Clean the ECG signal using NeuroKit2
+        
         processed_ecg = nk.ecg_clean(ecg_signal, sampling_rate=fs, method="pantompkins1985")
         
-        # Detect R-peaks using a custom threshold
+        
         r_peaks, _ = find_peaks(
             processed_ecg,
-            height=np.percentile(processed_ecg, 75),  # Adjust threshold for peak height
-            distance=int(0.6 * fs)  # Minimum distance between peaks (600ms)
+            height=np.percentile(processed_ecg, 75),
+            distance=int(0.6 * fs)
         )
-        
-        print(f"Detected R-peaks: {r_peaks}")
         return np.array(r_peaks)
     except Exception as e:
-        print(f"Error detecting R-peaks: {e}")
-        return np.array([])  # Return an empty array if detection fails
-# Return an empty array instead of None
+        return np.array([])
+
+
+def compute_intervals(ecg_signal, r_peaks, fs):
+    """Computes HR, approximates QT/PR, returns QRS peaks."""
+    
+    try:
+        if r_peaks is None or len(r_peaks) < 2:
+            return 0.0, 0.0, 0.0, np.array([])
+        rr_intervals_sec = np.diff(r_peaks) / fs
+        
+        if len(rr_intervals_sec) == 0 or np.mean(rr_intervals_sec) <= 0:
+             heart_rate = 0.0
+        else:
+             heart_rate = 60.0 / np.mean(rr_intervals_sec)
+
+        
+        qrs_peaks, _ = find_peaks(ecg_signal, height=np.percentile(ecg_signal, 90), distance=int(fs*0.06))
+
+        
+        qt_interval = (r_peaks[-1] - r_peaks[0]) / fs if len(r_peaks) > 1 else 0.0
+        pr_interval = (r_peaks[1] - r_peaks[0]) / fs if len(r_peaks) > 1 else 0.0
+
+        return float(heart_rate), float(qt_interval), float(pr_interval), np.array(qrs_peaks) 
+    except Exception as e:
+        app.logger.error(f"Error computing intervals: {e}", exc_info=True)
+        return 0.0, 0.0, 0.0, np.array([])
+
+
+def compute_framingham_risk(age, cholesterol, hdl, systolic_bp, smoker, diabetes):
+    
+    try:
+        # Original formula
+        score = (0.02 * age) + (0.03 * cholesterol) - (0.05 * hdl) + (0.04 * systolic_bp) + (0.2 * smoker) + (0.15 * diabetes)
+        return float(min(max(score, 0), 30)) 
+    except Exception as e:
+        app.logger.error(f"Error computing Framingham risk: {e}", exc_info=True)
+        return 0.0
+
+def compute_grace_score(age, systolic_bp, heart_rate):
+    
+    try:
+        # Original formula
+        score = (0.1 * age) - (0.05 * systolic_bp) + (0.2 * heart_rate)
+        return float(min(max(score, 0), 20)) # Ensure float and clamp
+    except Exception as e:
+        app.logger.error(f"Error computing GRACE score: {e}", exc_info=True)
+        return 0.0
+
+
+def center_pad_ecg(ecg_signal, target_length):
+    
+    if len(ecg_signal) >= target_length:
+        return ecg_signal[:target_length]
+    
+    pad_before = (target_length - len(ecg_signal)) // 2
+    pad_after = target_length - len(ecg_signal) - pad_before
+    return np.pad(ecg_signal, (pad_before, pad_after), mode='reflect')
+
+def check_heart_rate(heart_rate):
+    
+    normal_min = 60
+    normal_max = 100
+
+    if heart_rate is None or heart_rate <= 0:
+        return "Undetermined"
+    elif heart_rate < normal_min:
+        return "Bradycardia (slow heart rate)"
+    elif heart_rate > normal_max:
+        return "Tachycardia (fast heart rate)"
+    else:
+       
+        return "Normal heart rate"
+    
+def preprocess_ecg(ecg_signal, target_length=180):
+    try:
+        
+        ecg_signal = np.array(ecg_signal, dtype=np.float32)
+        
+        
+        mean_val = np.mean(ecg_signal)
+        std_dev = np.std(ecg_signal)
+        if std_dev < 1e-9: std_dev = 1e-9  
+        ecg_normalized = (ecg_signal - mean_val) / std_dev
+        
+        
+        if len(ecg_normalized) > target_length:
+            processed_signal = ecg_normalized[:target_length]
+        else:
+            pad_width = target_length - len(ecg_normalized)
+            processed_signal = np.pad(ecg_normalized, (0, pad_width), 
+                                    mode='constant', constant_values=0.0)
+        
+        return np.reshape(processed_signal, (1, target_length, 1))
+    except Exception as e:
+        return np.zeros((1, target_length, 1), dtype=np.float32)
+
+def generate_ecg_waveform_plot_json(record_num, samples_to_show, patient_id, ecg_signal_full, fs, r_peaks_full=None):
+    
+    
+    app.logger.debug(f"Generating plot for {patient_id}, record {record_num}...")
+    try:
+        ecg_signal_full = np.array(ecg_signal_full)
+        samples_to_show = min(samples_to_show, len(ecg_signal_full))
+        if samples_to_show <= 0: return json.dumps({})
+        ecg_display = ecg_signal_full[:samples_to_show]
+        time_axis = np.linspace(0, samples_to_show / fs, samples_to_show, endpoint=False)
+
+        # --- Refine R-Peak Locations ---
+        # (Keep the peak refinement logic exactly as in the previous version)
+        refined_visible_peaks_indices = []
+        if r_peaks_full is not None and len(r_peaks_full) > 0:
+           
+            initial_visible_peaks = np.array(r_peaks_full, dtype=int)
+            initial_visible_peaks = initial_visible_peaks[initial_visible_peaks < samples_to_show]
+            refined_peaks_temp = []
+            window_samples = int(0.05 * fs)
+            for peak_idx in initial_visible_peaks:
+                start = max(0, peak_idx - window_samples)
+                end = min(len(ecg_signal_full), peak_idx + window_samples)
+                window_slice = ecg_signal_full[start:end]
+                if len(window_slice) > 0:
+                    try:
+                         exact_peak_in_window = np.argmax(window_slice)
+                         refined_peak_abs_idx = start + exact_peak_in_window
+                         refined_peaks_temp.append(refined_peak_abs_idx)
+                    except Exception as refine_err: refined_peaks_temp.append(peak_idx) 
+                else: refined_peaks_temp.append(peak_idx)
+            refined_visible_peaks_indices = np.array(refined_peaks_temp, dtype=int)
+
+        fig = go.Figure()
+
+        fig.add_trace(go.Scatter(
+            x=time_axis.tolist(), y=ecg_display.tolist(), mode='lines',
+            line=dict(color='#000000', width=1.5), name='ECG Signal',
+            hovertemplate='Time: %{x:.3f}s<br>Amplitude: %{y:.2f}mV<extra></extra>'
+        ))
+
+        if len(refined_visible_peaks_indices) > 0:
+            valid_indices = refined_visible_peaks_indices[refined_visible_peaks_indices < len(time_axis)]
+            peak_times = time_axis[valid_indices]
+            peak_values = ecg_signal_full[valid_indices]
+            fig.add_trace(go.Scatter(
+                x=peak_times.tolist(), y=peak_values.tolist(), mode='markers',
+                marker=dict(color='#e74c3c', size=10, symbol='diamond', line=dict(width=1, color='#333333')),
+                name=f'R-peaks ({len(valid_indices)} detected)',
+                hovertemplate='R-peak<br>Time: %{x:.3f}s<br>Amplitude: %{y:.2f}mV<extra></extra>'
+            ))
+
+       
+        fig.update_layout(
+            title=dict(text=f'ECG Analysis - Patient {patient_id} (Record {record_num})', x=0.5, font=dict(size=18)),
+            xaxis_title='Time (s)',
+            yaxis_title='Amplitude (mV)',
+            height=450,
+            margin=dict(l=60, r=40, t=80, b=60), 
+            plot_bgcolor='rgba(255, 235, 235, 0.5)',
+            paper_bgcolor='white',
+            hovermode='closest',
+            showlegend=True, 
+
+            
+            legend=dict(
+                orientation="h", 
+                yanchor="bottom",
+                y=1.02, 
+                xanchor="center",
+                x=0.5 
+            ),
+            
+            xaxis=dict(
+                gridcolor='rgba(255, 99, 99, 0.5)', showgrid=True, gridwidth=1, zeroline=False, dtick=0.2,
+                minor=dict(showgrid=True, gridcolor='rgba(255, 99, 99, 0.2)', gridwidth=0.5, dtick=0.04),
+                rangeslider=dict(visible=True), tickformat='.2f'
+            ),
+            yaxis=dict(
+                gridcolor='rgba(255, 99, 99, 0.2)', showgrid=True, gridwidth=1, zeroline=True,
+                zerolinecolor='rgba(255, 99, 99, 0.5)', dtick=0.5,
+                minor=dict(showgrid=True, gridcolor='rgba(255, 99, 99, 0.1)', gridwidth=0.5, dtick=0.1)
+            )
+        )
+        app.logger.debug("Plot layout configured with legend outside.")
+
+        return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+
+    except Exception as e:
+        app.logger.error(f"Failed to generate ECG plot for {patient_id}, record {record_num}: {e}", exc_info=True)
+        return json.dumps({})
 
 def align_ecg_to_r_peak(ecg_signal, r_peaks, target_length=180):
-    """Center the ECG segment around the most prominent R-peak"""
     if len(r_peaks) == 0:
         return center_pad_ecg(ecg_signal, target_length)
     
-    # Find the most prominent R-peak (largest amplitude)
+    
     main_r_peak = r_peaks[np.argmax([ecg_signal[i] for i in r_peaks])]
     
-    # Calculate start and end indices
+   
     start = max(0, main_r_peak - target_length // 2)
     end = start + target_length
     
@@ -228,7 +554,7 @@ def align_ecg_to_r_peak(ecg_signal, r_peaks, target_length=180):
     
     segment = ecg_signal[start:end]
     
-    # Pad if necessary
+    
     if len(segment) < target_length:
         pad_before = (target_length - len(segment)) // 2
         pad_after = target_length - len(segment) - pad_before
@@ -236,929 +562,400 @@ def align_ecg_to_r_peak(ecg_signal, r_peaks, target_length=180):
     
     return segment
 
-def center_pad_ecg(ecg_signal, target_length):
-    """Center-pad ECG signal with reflection padding"""
-    if len(ecg_signal) >= target_length:
-        return ecg_signal[:target_length]
-    
-    pad_before = (target_length - len(ecg_signal)) // 2
-    pad_after = target_length - len(ecg_signal) - pad_before
-    return np.pad(ecg_signal, (pad_before, pad_after), mode='reflect')
 
-def check_heart_rate(heart_rate):
-   
-    normal_min = 60
-    normal_max = 100
-
-    if heart_rate < normal_min:
-        return "Bradycardia (slow heart rate)"
-    elif heart_rate > normal_max:
-        return "Tachycardia (fast heart rate)"
-    else:
-        return "Normal heart rate"
-
-
-
-def preprocess_ecg(ecg_signal, target_length=180):
-    print("PreProcessing Function !!!")
-    """Prepare ECG signal for model input with consistent shape."""
-    try:
-        # Ensure input is numpy array
-        ecg_signal = np.array(ecg_signal, dtype=np.float32)
-        
-        # Normalize
-        ecg_signal = (ecg_signal - np.mean(ecg_signal)) / np.std(ecg_signal)
-        
-        # Handle length
-        if len(ecg_signal) > target_length:
-            ecg_signal = ecg_signal[:target_length]
-        else:
-            ecg_signal = np.pad(ecg_signal, (0, target_length - len(ecg_signal)), 
-                            mode='constant', constant_values=0)
-        
-        # Reshape to (1, 180, 1) - batch of 1, 180 timesteps, 1 channel
-        return np.reshape(ecg_signal, (1, target_length, 1))
-    except Exception as e:
-        print(f"Error preprocessing ECG: {e}")
-        # Return zero array with correct shape if error occurs
-        return np.zeros((1, target_length, 1), dtype=np.float32)
-    
-
-def downsample_ecg(ecg_signal, target_samples=5000):
-    """
-    Downsample ECG signal to target_samples while preserving key features
-    """
-    original_length = len(ecg_signal)
-    if original_length <= target_samples:
-        return ecg_signal
-    
-    # Calculate downsampling factor
-    factor = int(np.ceil(original_length / target_samples))
-    
-    # Downsample using mean to preserve general shape
-    downsampled = np.zeros(target_samples)
-    for i in range(target_samples):
-        start = i * factor
-        end = min((i + 1) * factor, original_length)
-        downsampled[i] = np.mean(ecg_signal[start:end])
-    
-    return downsampled
-
-def compute_intervals(ecg_signal, r_peaks, fs):
-    try:
-        if len(r_peaks) < 2:
-            return 0, 0, 0, np.array([])
-            
-        rr_intervals = np.diff(r_peaks) / fs
-        heart_rate = 60 / np.mean(rr_intervals)
-        
-        # Find QRS peaks (using relative height)
-        qrs_peaks, _ = find_peaks(ecg_signal, 
-                                 height=np.percentile(ecg_signal, 90),
-                                 distance=int(fs*0.06))
-        
-        # Calculate intervals
-        qt_interval = (r_peaks[-1] - r_peaks[0]) / fs if len(r_peaks) > 1 else 0
-        pr_interval = (r_peaks[1] - r_peaks[0]) / fs if len(r_peaks) > 1 else 0
-        
-        return float(heart_rate), float(qt_interval), float(pr_interval), qrs_peaks
-    except Exception as e:
-        print(f"Error computing intervals: {e}")
-        return 0.0, 0.0, 0.0, np.array([])
-
-def compute_framingham_risk(age, cholesterol, hdl, systolic_bp, smoker, diabetes):
-    try:
-        score = (0.02 * age) + (0.03 * cholesterol) - (0.05 * hdl) + (0.04 * systolic_bp) + (0.2 * smoker) + (0.15 * diabetes)
-        return min(max(score, 0), 30)
-    except Exception as e:
-        print(f"Error computing Framingham risk: {e}")
-        return 0
-
-def compute_grace_score(age, systolic_bp, heart_rate):
-    try:
-        score = (0.1 * age) - (0.05 * systolic_bp) + (0.2 * heart_rate)
-        return min(max(score, 0), 20)
-    except Exception as e:
-        print(f"Error computing GRACE score: {e}")
-        return 0
-    
-
-
-
-
-
-#everything proper but need some update in grid lines
-def generate_ecg_plot(ecg_signal, r_peaks=None, title="ECG Signal", pred_class_id=None, fs=360, samples_to_show=2000):
-    # Convert inputs to numpy arrays
-    ecg_signal = np.array(ecg_signal)
-    if r_peaks is not None:
-        r_peaks = np.array(r_peaks)
-    
-    # Ensure we don't exceed available samples
-    samples_to_show = min(samples_to_show, len(ecg_signal))
-    
-    # DEBUG: Print signal information
-    print(f"ECG signal length: {len(ecg_signal)} samples")
-    print(f"First 5 values: {ecg_signal[:5]}")
-    
-    # Create time axis in seconds
-    time_axis = np.linspace(0, samples_to_show/fs, samples_to_show)
-    
-    # DEBUG: Print time axis information
-    print(f"Time axis range: {time_axis[0]:.2f}s to {time_axis[-1]:.2f}s")
-    print(f"Time axis length: {len(time_axis)} points")
-    
-    # Create figure
-    fig = go.Figure()
-    
-    # Plot ECG signal
-    fig.add_trace(go.Scatter(
-        x=time_axis.tolist(),
-        y=ecg_signal[:samples_to_show].tolist(),
-        mode='lines',
-        line=dict(color='#000000', width=1.5),
-        name='ECG Signal',
-        hovertemplate='Time: %{x:.3f}s<br>Amplitude: %{y:.2f}mV'
-    ))
-    
-    if r_peaks is not None and len(r_peaks) > 0:
-        visible_r_peaks = r_peaks[r_peaks < samples_to_show]
-        print(f"Visible R-peaks: {visible_r_peaks}")
-        
-        class_info = next((v for k, v in CLASSES.items() if v.get('id') == pred_class_id), 
-                       {'name': 'Unknown', 'color': '#95a5a6'})
-        
-        # PRECISE R-PEAK DETECTION - Using windowed refinement
-        refined_peaks = []
-        window_size = int(0.08 * fs)  # 80ms window around each peak
-        
-        for peak in visible_r_peaks:
-            start = max(0, peak - window_size)
-            end = min(len(ecg_signal), peak + window_size)
-            window = ecg_signal[start:end]
-            exact_peak = start + np.argmax(window)  # Find exact maximum in window
-            refined_peaks.append(exact_peak)
-        
-        refined_peaks = np.array(refined_peaks)
-        print(f"Refined peak positions: {refined_peaks}")
-        
-        # Convert peak positions to time in seconds
-        peak_times = refined_peaks / fs
-        peak_values = ecg_signal[refined_peaks]
-        
-        fig.add_trace(go.Scatter(
-            x=peak_times.tolist(),
-            y=peak_values.tolist(),
-            mode='markers',
-            marker=dict(
-                color=class_info['color'],
-                size=10,  # Slightly larger for better visibility
-                line=dict(width=2, color='#333333'),
-                symbol='diamond'
-            ),
-            name=f'R-peaks ({len(refined_peaks)} beats)',
-            hovertemplate='R-peak at %{x:.3f}s<br>Amplitude: %{y:.2f}mV'
-        ))
-    
-    # Update layout with ECG-standard grid and styling
-    fig.update_layout(
-        title=dict(text=title, x=0.5, font=dict(size=18)),
-        xaxis_title='Time (s)',
-        yaxis_title='Amplitude (mV)',
-        height=450,
-        margin=dict(l=60, r=40, t=80, b=60),
-        plot_bgcolor='rgba(255, 235, 235, 0.5)',
-        paper_bgcolor='white',
-        hovermode='closest',
-        showlegend=True,
-        xaxis=dict(
-            gridcolor='rgba(255, 99, 99, 0.5)',
-            showgrid=True,
-            gridwidth=1,
-            dtick=0.2,  # Major grid every 0.2s (5mm)
-            minor=dict(
-                showgrid=True,
-                gridcolor='rgba(255, 99, 99, 0.2)',
-                gridwidth=0.5,
-                dtick=0.04  # Minor grid every 0.04s (1mm)
-            ),
-            rangeslider=dict(visible=True),
-            tickformat='.2f'
-        ),
-        yaxis=dict(
-            gridcolor='rgba(255, 99, 99, 0.2)',
-            showgrid=True,
-            gridwidth=1,
-            dtick=0.5,  # Major grid every 0.5mV (5mm)
-            minor=dict(
-                showgrid=True,
-                gridcolor='rgba(255, 99, 99, 0.2)',
-                gridwidth=0.5,
-                dtick=0.1  # Minor grid every 0.1mV (1mm)
-            )
-        )
-    )
-    
-    return f"ecg_plot_{int(time.time())}.html", json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
-
-
-def generate_pdf(predicted_class, framingham_risk, grace_score, heart_rate, 
-                qt_interval, pr_interval, vfib_detected=None, 
-                vfib_confidence=None, ecg_graph_json=None):
-    try:
-        unique_id = str(uuid.uuid4())[:8]
-        pdf_filename = f"ECG_Report_{unique_id}.pdf"
-        pdf_path = os.path.join("static", pdf_filename)
-        
-        c = canvas.Canvas(pdf_path, pagesize=letter)
-        c.setFont("Helvetica-Bold", 16)
-        c.drawString(100, 750, "ECG Analysis Report")
-        c.setFont("Helvetica", 12)
-        
-        y_position = 700
-        c.drawString(100, y_position, f"Prediction: {predicted_class}")
-        y_position -= 30
-        c.drawString(100, y_position, f"Framingham Risk: {framingham_risk:.2f}%")
-        y_position -= 30
-        c.drawString(100, y_position, f"GRACE Score: {grace_score:.2f}%")
-        y_position -= 30
-        c.drawString(100, y_position, f"Heart Rate: {heart_rate:.2f} BPM")
-        
-        if vfib_detected is not None:
-            y_position -= 30
-            status = "Detected" if vfib_detected else "Not Detected"
-            c.drawString(100, y_position, f"VFib: {status} ({vfib_confidence:.1f}% confidence)")
-        
-        y_position -= 30
-        c.drawString(100, y_position, f"QT Interval: {qt_interval:.3f}s")
-        y_position -= 30
-        c.drawString(100, y_position, f"PR Interval: {pr_interval:.3f}s")
-        
-        if ecg_graph_json:
-            try:
-                # Save plot as image
-                plot_filename = f"ecg_plot_{unique_id}.png"
-                plot_path = os.path.join("static", plot_filename)
-                
-                fig = plotly.io.from_json(ecg_graph_json)
-                fig.write_image(plot_path)
-                
-                # Add to PDF
-                c.drawImage(plot_path, 100, 400, width=400, height=200)
-            except Exception as e:
-                print(f"Error adding ECG plot to PDF: {e}")
-        
-        c.save()
-        return pdf_filename
-    except Exception as e:
-        print(f"Error generating PDF: {e}")
-        return None
-
-# Routes
+# --- Route Definitions ---
+# --- Authentication Routes ---
 @app.route("/", methods=["GET", "POST"])
 def staff_login():
+    """Staff Login Page."""
+    if current_user.is_authenticated and current_user.user_type == 'staff':
+        app.logger.debug("Staff already logged in, redirecting to registration.")
+        return redirect(url_for('patient_registration'))
+
     if request.method == "POST":
-        staff_id = request.form.get("Staff_ID")
-        password = request.form.get("password")
-        
+        staff_id = request.form.get("Staff_ID", "").strip()
+        password = request.form.get("password", "")
+
         if not staff_id or not password:
-            flash("Please enter Staff ID and password", "danger")
-            return render_template("staff_login.html")
-        
-        cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
-        try:
-            cursor.execute("SELECT * FROM staff WHERE Staff_ID = %s", (staff_id,))
-            staff = cursor.fetchone()
-            
-            if staff and bcrypt.check_password_hash(staff["Password"], password):
-                staff_obj = User(
-                    id=staff["Staff_ID"],  
-                    username=staff["StaffName"],
-                    user_type="staff"
-                )
-                login_user(staff_obj)
-                return redirect(url_for("patient_registration"))
+            flash("Staff ID and password are required.", "warning")
+        else:
+            staff_data = db_fetch_one("SELECT * FROM staff WHERE Staff_ID = %s", (staff_id,))
+            if staff_data and bcrypt.check_password_hash(staff_data["Password"], password):
+                user_obj = User(id=staff_data["Staff_ID"], username=staff_data["StaffName"], user_type="staff")
+                login_user(user_obj)
+                app.logger.info(f"Staff login successful: {staff_id}")
+                next_page = request.args.get('next')
+                return redirect(next_page or url_for("patient_registration"))
             else:
-                flash("Invalid credentials", "danger")
-        except MySQLdb.Error as e:
-            flash(f"Database error: {str(e)}", "danger")
-        finally:
-            cursor.close()
-    
+                flash("Invalid Staff ID or password.", "danger")
+                app.logger.warning(f"Failed staff login attempt for ID: {staff_id}")
+
     return render_template("staff_login.html")
 
 @app.route("/doctor_login", methods=["GET", "POST"])
 def doctor_login():
+    """Doctor Login Page."""
+    if current_user.is_authenticated and current_user.user_type == 'doctor':
+        app.logger.debug("Doctor already logged in, redirecting to input form.")
+        return redirect(url_for('input_form'))
+
     if request.method == "POST":
-        doctor_id = request.form.get("doctor_id")
-        password = request.form.get("password")
-        
+        doctor_id = request.form.get("doctor_id", "").strip()
+        password = request.form.get("password", "")
+
         if not doctor_id or not password:
-            return render_template("doctor_login.html")
-        
-        cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
-        try:
-            cursor.execute("SELECT * FROM doctor WHERE Doctor_ID = %s", (doctor_id,))
-            doctor = cursor.fetchone()
-            
-            if doctor and bcrypt.check_password_hash(doctor["Password"], password):
-                doctor_obj = User(
-                    id=str(doctor["Doctor_ID"]),
-                    username=doctor['Username'],
-                    user_type="doctor"
-                )
-                session['doctor_name'] = doctor['Username']
-                login_user(doctor_obj)
-                return redirect(url_for("input_form"))
+            flash("Doctor ID and password are required.", "warning")
+        else:
+            doctor_data = db_fetch_one("SELECT * FROM doctor WHERE Doctor_ID = %s", (doctor_id,))
+            if doctor_data and bcrypt.check_password_hash(doctor_data["Password"], password):
+                user_obj = User(id=str(doctor_data["Doctor_ID"]), username=doctor_data['Username'], user_type="doctor")
+                login_user(user_obj)
+                session['doctor_name'] = doctor_data['Username']
+                app.logger.info(f"Doctor login successful: {doctor_id}")
+                next_page = request.args.get('next')
+                
+                return redirect(next_page or url_for("input_form"))
             else:
-                flash("Invalid credentials", "danger")
-        except MySQLdb.Error as e:
-            flash(f"Database error: {str(e)}", "danger")
-        finally:
-            cursor.close()
-    
+                flash("Invalid Doctor ID or password.", "danger")
+                app.logger.warning(f"Failed doctor login attempt for ID: {doctor_id}")
+
     return render_template("doctor_login.html")
-
-@app.route("/input_form", methods=["GET", "POST"])
-@login_required
-def input_form():
-    doctor_name = session.get('doctor_name', 'Guest')
-    patient = None
-    medical_history = None
-    
-    if request.method == "POST":
-        patient_id = request.form.get("Patient_ID")
-        
-        if not patient_id:
-            flash("Please enter a patient ID", "danger")
-            return render_template("input_form.html")
-        
-        cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
-        try:
-            cursor.execute("""
-                SELECT p.*, s.StaffName 
-                FROM patient_profile p
-                LEFT JOIN staff s ON p.Staff_Username = s.Staff_ID
-                WHERE p.Patient_ID = %s
-            """, (patient_id,))
-            patient = cursor.fetchone()
-            
-            if not patient:
-                flash("Patient not found", "danger")
-                return render_template("input_form.html")
-            
-            cursor.execute("""
-                SELECT * FROM input 
-                WHERE Patient_ID = %s 
-                ORDER BY Generated_AT DESC
-            """, (patient_id,))
-            medical_history = cursor.fetchall()
-            
-        except MySQLdb.Error as e:
-            flash(f"Database error: {str(e)}", "danger")
-        finally:
-            cursor.close()
-
-    return render_template("input_form.html", 
-                         patient=patient, 
-                         medical_history=medical_history, 
-                         doctor_name=doctor_name)
-
-@app.route("/add_medical_data/<patient_id>", methods=["POST"])
-@login_required
-def add_medical_data(patient_id):
-    cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
-    try:
-        cursor.execute("SELECT * FROM patient_profile WHERE Patient_ID = %s", (patient_id,))
-        patient = cursor.fetchone()
-        
-        if not patient:
-            flash("Patient not found", "danger")
-            return redirect(url_for("input_form"))
-        
-        systolic_bp = request.form["systolic_bp"]
-        cholesterol = request.form["cholesterol"]
-        hdl = request.form["hdl"]
-        smoker = 1 if request.form.get("smoker") else 0
-        diabetic = 1 if request.form.get("diabetic") else 0
-        generated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        
-        cursor.execute("""
-            INSERT INTO input 
-            (Patient_ID, Doctor_ID, Smoker, Alcoholic, Diabetic, Cholesterol, HDL, 
-             Blood_Pressure, Other_Issues, Generated_AT)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """, (
-            patient_id, 
-            current_user.id, 
-            smoker, 
-            0,  
-            diabetic, 
-            cholesterol, 
-            hdl,
-            systolic_bp, 
-            "",  
-            generated_at
-        ))
-        mysql.connection.commit()
-        # flash("Medical data saved successfully", "success")
-        
-    except MySQLdb.Error as e:
-        flash(f"Error saving medical data: {str(e)}", "danger")
-    finally:
-        cursor.close()
-    
-    return redirect(url_for("input_form"))
 
 @app.route("/logout")
 @login_required
 def logout():
+    """Logs out the current user."""
+    user_id = current_user.id
     user_type = current_user.user_type
     logout_user()
-    
-    if user_type == "doctor":
-        return redirect(url_for("doctor_login"))
-    elif user_type == "staff":
-        return redirect(url_for("staff_login"))
-    else:
-        return redirect(url_for("staff_login"))
+    session.pop('doctor_name', None) 
+    app.logger.info(f"{user_type.capitalize()} user {user_id} logged out.")
+    redirect_url = url_for('doctor_login') if user_type == 'doctor' else url_for('staff_login')
+    return redirect(redirect_url)
 
-def handle_model_output(predictions):
-    try:
-        if isinstance(predictions, list) and len(predictions) > 0:
-            return np.array(predictions[0][0][:7])
-        return np.array(predictions[0][0][:7])
-    except Exception as e:
-        print(f"Error processing output: {str(e)}")
-        return None
+# --- Doctor Routes ---
+@app.route("/input_form", methods=["GET", "POST"])
+@login_required
+@doctor_required
+def input_form():
+    """Doctor dashboard: Search patient, view details and history."""
+    doctor_name = session.get('doctor_name', getattr(current_user, 'username', 'Doctor'))
+    patient = None
+    medical_history = [] 
 
+    if request.method == "POST":
+        patient_id = request.form.get("Patient_ID", "").strip()
+        if not re.match(r'^PT-\d{5}-\d{4}$', patient_id):
+            flash("Invalid Patient ID format. Please use PT-xxxxx-YYYY.", "danger")
+        else:
+            app.logger.info(f"Doctor {current_user.id} searching for patient: {patient_id}")
+            try:
+                # --- MODIFIED SQL ---
+                # Select all columns directly from patient_profile.
+                # No need to join with staff table anymore for this purpose.
+                sql_patient = """
+                SELECT p.* 
+                FROM patient_profile p
+                WHERE p.Patient_ID = %s
+                """
+                # The result 'patient' dictionary will now contain the 'Staff_Username'
+                # key directly from the patient_profile table.
+                patient = db_fetch_one(sql_patient, (patient_id,))
 
-def generate_ecg_waveform_data(record_num, samples_to_show, patient_id):
-    try:
-        # Load ECG data
-        ecg_signal, fs, _, _ = load_ecg_sample(record_num)
-        if ecg_signal is None or fs is None:
-            raise ValueError("Failed to load ECG record")
-        
-        # Convert to numpy array and filter
-        ecg_signal = np.array(ecg_signal)
-        ecg_filtered = butterworth_filter(ecg_signal, fs=fs)
-        
-        # Limit to requested samples
-        samples_to_show = min(samples_to_show, len(ecg_filtered))
-        ecg_display = ecg_filtered[:samples_to_show]
-        
-        # Create time axis in seconds
-        time_axis = np.linspace(0, samples_to_show/fs, samples_to_show)
-        
-        # Enhanced R-peak detection with precise top detection
-        r_peaks = detect_r_peaks(ecg_filtered, fs)
-        
-        # Refine peaks to get exact top of R waves
-        refined_r_peaks = []
-        if len(r_peaks) > 0:
-            for peak in r_peaks:
-                # Look at a 100ms window around the detected peak
-                window_start = max(0, peak - int(0.05 * fs))  # 50ms before
-                window_end = min(len(ecg_filtered), peak + int(0.05 * fs))  # 50ms after
+                if patient:
+                    
+                    app.logger.info(f"Patient data fetched for {patient_id}: {patient}") 
+                    app.logger.info(f"Value in Staff_Username column: {patient.get('Staff_Username')}") # Use .get for safety
+
+                    # Fetch medical history entries for this patient
+                    sql_history = "SELECT * FROM input WHERE Patient_ID = %s ORDER BY Generated_AT DESC"
+                    medical_history = db_fetch_all(sql_history, (patient_id,))
+                    app.logger.info(f"Found {len(medical_history)} medical history entries for patient {patient_id}.")
                 
-                # Find the absolute maximum in this window (top of R wave)
-                window = ecg_filtered[window_start:window_end]
-                exact_peak_pos = window_start + np.argmax(window)
-                refined_r_peaks.append(exact_peak_pos)
-        
-        # Filter peaks that are within our display range
-        visible_peaks = [p for p in refined_r_peaks if p < samples_to_show]
-        peak_times = [time_axis[p] for p in visible_peaks]
-        peak_values = [ecg_filtered[p] for p in visible_peaks]
-        
-        fig = go.Figure()
-        
-        fig.add_trace(go.Scatter(
-            x=time_axis.tolist(),
-            y=ecg_display.tolist(),
-            mode='lines',
-            line=dict(color='#000000', width=1.5),
-            name='ECG Signal',
-            hovertemplate='Time: %{x:.3f}s<br>Amplitude: %{y:.2f}mV'
-        ))
-        # Add R-peak markers if any peaks found
-        if len(visible_peaks) > 0:
-            fig.add_trace(go.Scatter(
-                x=peak_times,
-                y=peak_values,
-                mode='markers',
-                marker=dict(
-                    color='#e74c3c',
-                    size=10,  # Slightly larger for better visibility
-                    line=dict(width=2, color='#333333'),
-                    symbol='diamond'
-                ),
-                name=f'R-peaks ({len(visible_peaks)} beats)',
-                hovertemplate='R-peak at %{x:.3f}s<br>Amplitude: %{y:.2f}mV'
-            ))
-        
-        fig.update_layout(
-            title=dict(text=f'ECG - Patient {patient_id}', x=0.5, font=dict(size=18)),
-            xaxis_title='Time (s)',
-            yaxis_title='Amplitude (mV)',
-            height=450,
-            margin=dict(l=60, r=40, t=80, b=60),
-            plot_bgcolor='rgba(255, 235, 235, 0.5)',  # Light red background
-            paper_bgcolor='white',
-            hovermode='closest',
-            showlegend=True,
-            xaxis=dict(
-                gridcolor='rgba(255, 99, 99, 0.5)',  # Red major grid lines (5mm)
-                showgrid=True,
-                gridwidth=1,
-                dtick=0.2,  # Major grid every 0.2s (5mm at 25mm/s)
-                minor=dict(
-                    showgrid=True,
-                    gridcolor='rgba(255, 99, 99, 0.2)',  # Lighter red minor grid (1mm)
-                    gridwidth=0.5,
-                    dtick=0.04  # Minor grid every 0.04s (1mm at 25mm/s)
-                ),
-                rangeslider=dict(visible=True),
-                tickformat='.2f'  # Show 2 decimal places for seconds
-            ),
-            yaxis=dict(
-                gridcolor='rgba(255, 99, 99, 0.2)',  # Red major grid lines (5mm)
-                showgrid=True,
-                gridwidth=1,
-                dtick=0.5,  # Major grid every 0.5mV (5mm at 10mm/mV)
-                minor=dict(
-                    showgrid=True,
-                    gridcolor='rgba(255, 99, 99, 0.1)',  # Lighter red minor grid (1mm)
-                    gridwidth=0.5,
-                    dtick=0.1  # Minor grid every 0.1mV (1mm at 10mm/mV)
-                )
-            )
-        )
+                else:
+                    flash(f"Patient with ID '{patient_id}' not found in the system.", "warning")
+                    app.logger.warning(f"Patient search failed for ID: {patient_id}")
 
-        # Convert to JSON for frontend
-        safe_plot_json = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+            except Exception as e:
+                app.logger.error(f"Error during patient search for {patient_id}: {e}", exc_info=True)
+                flash("An error occurred while retrieving patient data. Please try again.", "danger")
+ 
+    return render_template("input_form.html",
+                           patient=patient,
+                           medical_history=medical_history,
+                           doctor_name=doctor_name)
 
-        result = {
-            "plot_json": safe_plot_json,
-            "record_num": record_num,
-            "patient_id": patient_id,
-            "samples_to_show": samples_to_show,
-            "total_samples": len(ecg_filtered),
-            "sampling_rate": fs,
-            "visible_beats_count": len(visible_peaks),
-            "all_beats_count": len(r_peaks)
-        }
-        return result
-        
-    except Exception as e:
-        print(f"Exception in generate_ecg_waveform_data: {e}")
-        raise
 
-def ecg_waveform(patient_id):
-    record_num = request.args.get('record_num', '100')
-    samples_to_show = request.args.get('samples', default=2000, type=int)
+@app.route("/add_medical_data/<patient_id>", methods=["POST"])
+@login_required
+@doctor_required 
+def add_medical_data(patient_id):
+    """Handles submission of basic medical data from input_form."""
+    
     try:
-        data = generate_ecg_waveform_data(record_num, samples_to_show, patient_id)
-        return data # Flask will return this as a JSON if you're using jsonify
+        systolic_bp = request.form["systolic_bp"]
+        cholesterol = request.form["cholesterol"]
+        hdl = request.form["hdl"]
+        # Basic type checks
+        float(systolic_bp)
+        float(cholesterol)
+        float(hdl)
+    except (KeyError, ValueError) as form_err:
+        app.logger.error(f"Invalid form data submitted for add_medical_data {patient_id}: {form_err}")
+        flash("Invalid medical data submitted. Please check values.", "danger")
+        return redirect(url_for("input_form")) 
+
+    smoker = 1 if request.form.get("smoker") == 'on' else 0 
+    diabetic = 1 if request.form.get("diabetic") == 'on' else 0
+    
+
+    try:
+       
+        if not db_fetch_one("SELECT 1 FROM patient_profile WHERE Patient_ID = %s", (patient_id,)):
+             flash(f"Patient {patient_id} not found. Cannot add medical data.", "danger")
+             return redirect(url_for("input_form"))
+
+        sql_insert = """
+            INSERT INTO input
+            (Patient_ID, Doctor_ID, Smoker, Alcoholic, Diabetic, Cholesterol, HDL,
+             Blood_Pressure, Other_Issues, Generated_AT)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+        """
+        params = (
+            patient_id, current_user.id, smoker, 0, 
+            diabetic, cholesterol, hdl, systolic_bp, "", 
+        )
+        db_execute(sql_insert, params, commit=True)
+        app.logger.info(f"Added medical data for patient {patient_id} by doctor {current_user.id}")
+    
+
     except Exception as e:
-        flash(f"Error generating waveform: {str(e)}", "danger")
-        return redirect(url_for('automatic_analysis', patient_id=patient_id))
+        app.logger.error(f"Error saving medical data for patient {patient_id}: {e}", exc_info=True)
+        flash("An error occurred while saving medical data.", "danger")
+
+    return redirect(url_for("input_form"))
+
 
 
 @app.route("/automatic_analysis/<patient_id>", methods=["GET", "POST"])
 @login_required
+@doctor_required
 def automatic_analysis(patient_id):
-    print("Testing!!!!")
-    """Perform ECG analysis with the multi-output model."""
-    try:
-        print("Try Catch - 1")
-        # Validate patient ID
-        if not re.match(r'^PT-\d{5}-\d{4}$', patient_id):
-            flash("Invalid Patient ID format", "danger")
-            return redirect(url_for("input_form"))
-
-        # Fetch patient data
-        cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
-        try:
-            print("Try - Catch 2")
-            cursor.execute("""
-                SELECT p.*, d.Username AS Doctor_Name 
-                FROM patient_profile p
-                LEFT JOIN doctor d ON p.Doctor_ID = d.Doctor_ID
-                WHERE p.Patient_ID = %s
-            """, (patient_id,))
-            patient = cursor.fetchone()
-            
-            if not patient:
-                flash("Patient not found", "danger")
-                return redirect(url_for("input_form"))
-                
-        except Exception as e:
-            flash(f"Database error: {str(e)}", "danger")
-            return redirect(url_for("input_form"))
-        finally:
-            cursor.close()
-
-        if request.method == "POST":
-            try:
-                print("Try Catch 3")
-                # Get and validate form data
-                record_num = request.form.get("record_num", "100").strip()
-                age = int(request.form.get("age", patient.get("Age", 30)))
-                cholesterol = int(request.form.get("cholesterol", 150))
-                hdl = int(request.form.get("hdl", 40))
-                systolic_bp = int(request.form.get("systolic_bp", 120))
-                smoker = 1 if request.form.get("smoker") == "on" else 0
-                diabetes = 1 if request.form.get("diabetes") == "on" else 0
-
-                # Validate medical parameters
-                if not (0 < age <= 120):
-                    raise ValueError("Age must be between 1-120")
-                if not (0 < cholesterol <= 500):
-                    raise ValueError("Invalid cholesterol value")
-                if not (0 < hdl <= 100):
-                    raise ValueError("Invalid HDL value")
-                if not (50 <= systolic_bp <= 250):
-                    raise ValueError("Invalid systolic BP")
-                print("Before Loading ECG Sample")
-
-
-                insert_cursor = mysql.connection.cursor()
-                try:
-                    insert_query = """
-                        INSERT INTO input 
-                        (Patient_ID, Smoker, Diabetic, Cholesterol, HDL, 
-                         Blood_Pressure, Generated_AT, Doctor_ID)
-                        VALUES (%s, %s, %s, %s, %s, %s, NOW(), %s)
-                    """
-                    insert_cursor.execute(insert_query, (
-                        patient_id, 
-                        smoker, 
-                        diabetes, 
-                        cholesterol, 
-                        hdl, 
-                        systolic_bp,
-                        patient.get('Doctor_ID')
-                    ))
-                    mysql.connection.commit()
-                    
-                    # Verify insertion
-                    insert_cursor.execute("""
-                        SELECT * FROM input 
-                        WHERE Patient_ID = %s
-                        ORDER BY Record_ID DESC
-                        LIMIT 1
-                    """, (patient_id,))
-                    latest_record = insert_cursor.fetchone()
-                    
-                    if not latest_record:
-                        raise Exception("Insert verification failed - no record found")
-
-                except Exception as e:
-                    mysql.connection.rollback()
-                    flash(f"Failed to save medical data: {str(e)}", "danger")
-                    return redirect(url_for("automatic_analysis", patient_id=patient_id))
-                finally:
-                    insert_cursor.close()
-                # Load and validate ECG signal
-                #print("Return of Load Sample: ",load_ecg_sample(record_num))
-                ecg_signal, fs, _, _ = load_ecg_sample(record_num)
-                if ecg_signal is None or fs is None:
-                 # Flash message is handled inside load_ecg_sample now
-                    return redirect(url_for("automatic_analysis", patient_id=patient_id)) 
-                if len(ecg_signal) < 180: # Or some reasonable minimum length
-                    flash(f"ECG signal for record '{record_num}' is too short.", "warning")
-                print("ECG Signal FS: ",fs)
-                if ecg_signal is None:
-                    raise ValueError("Failed to load ECG record")
-                if len(ecg_signal) < 180:
-                    raise ValueError("ECG signal too short (min 180 samples)")
-
-                # Process ECG signal
-                ecg_filtered = butterworth_filter(ecg_signal, fs=fs)
-                print("ECG Filtered: ",ecg_filtered)
-                ecg_normalized = (ecg_filtered - np.mean(ecg_filtered)) / np.std(ecg_filtered)
-                print("ECG Normalized 1: ",ecg_normalized)
-                ecg_normalized = np.nan_to_num(ecg_normalized, nan=0.0)
-                print("ECG Normalized 2: ",ecg_normalized)
-
-                # Detect cardiac features
-                r_peaks = detect_r_peaks(ecg_filtered, fs)
-                print("R Peaks: ",r_peaks)
-                print("Compute Intervals",compute_intervals(ecg_filtered, r_peaks, fs))
-                heart_rate, qt_interval, pr_interval, _ = compute_intervals(ecg_filtered, r_peaks, fs)
-                print("Heart Rate: ",heart_rate)
-                print("QT Interval: ",qt_interval)
-                print("PR Interval: ",pr_interval)
-
-
-                heart_rate_status = check_heart_rate(heart_rate)
-                print("Heart Rate Status: ",heart_rate_status)
-                # Prepare model input (ensure exact 180 samples)
-                model_input = np.zeros((1, 180, 1), dtype=np.float32)
-                print("Model Input: ",model_input)
-                usable_samples = min(180, len(ecg_normalized))
-                print("Usable Samples: ",usable_samples)
-                model_input[0, :usable_samples, 0] = ecg_normalized[:usable_samples]
-
-
-                # Make prediction
-                main_pred, vfib_pred = model.predict(model_input, verbose=0)
-                print("Main Prediction: ",main_pred)
-                print("VFIB Prediction: ",vfib_pred)
-                main_pred = main_pred.flatten()
-                print("Main Prediction Flattened: ",main_pred)
-                vfib_pred = vfib_pred.flatten()[0]  # VFIB probability
-                print("VFIB Prediction Flattened: ",vfib_pred)
-
-                # Get class with highest probability (excluding VFIB)
-                pred_class_idx = np.argmax(main_pred)
-                pred_class_id = list(CLASSES.keys())[pred_class_idx]
-                pred_class = CLASSES[pred_class_id]['name']
-                confidence = main_pred[pred_class_idx] * 100
-
-                # Combine VFIB probability with main predictions
-                class_probabilities = {}
-                for i, (class_id, info) in enumerate(CLASSES.items()):
-                    prob = main_pred[i] * 100
-                    if class_id == 'VF':
-                        # Use the dedicated VFIB output
-                        prob = vfib_pred * 100
-                    class_probabilities[class_id] = {
-                        'name': info['name'],
-                        'probability': prob,
-                        'color': info['color'],
-                        'weight': info['weight']
-                    }
-
-                # Calculate risk scores
-                framingham_risk = compute_framingham_risk(age, cholesterol, hdl, systolic_bp, smoker, diabetes)
-                grace_score = compute_grace_score(age, systolic_bp, heart_rate)
-                # print("ECG Normalized: ",ecg_normalized)
-                # Generate ECG visualization
-                # print("Generate Plot: ",generate_ecg_plot(
-                #     ecg_normalized,
-                #     r_peaks,
-                #     f"ECG - Predicted: {pred_class}",
-                #     pred_class_id
-                # ))
-                # ecg_plot_filename, ecg_plot_json = generate_ecg_plot(
-                #     ecg_signal=ecg_filtered, # Plot the filtered (but not normalized) signal for better visual scale
-                #     r_peaks=r_peaks,
-                #     title=f"ECG Waveform - {len(r_peaks)} Beats Detected (Record: {record_num})",
-                #     pred_class_id=pred_class_id,
-                #     fs=fs
-                # )
-
-    #             if ecg_plot_json is None:
-    #             # flash("Failed to generate ECG visualization.", "danger")
-    #             # Decide how to handle - maybe show results without plot?
-    #             # For now, let's continue but log it
-    #             print("Warning: ecg_plot_json is None")
-
-    #             # If you need the plot JSON for web display
-    #             if ecg_plot_json:
-    # # Store in a template variable for display
-    #                 ecg_plot = ecg_plot_json
-
-                # Generate PDF report
-                # pdf_filename = generate_pdf(
-                #     predicted_class=pred_class,
-                #     framingham_risk=framingham_risk,
-                #     grace_score=grace_score,
-                #     heart_rate=heart_rate,
-                #     qt_interval=qt_interval,
-                #     pr_interval=pr_interval
-                #     #ecg_filename=ecg_plot_filename  # This is now a placeholder filename
-                # )
-
-                waveform_data=ecg_waveform(patient_id=patient_id)
-                print("Waveform Data: ",waveform_data)
-                result_data = {
-                    'patient': patient,
-                    'predicted_class': pred_class,
-                    'predicted_class_id': pred_class_id,
-                    'confidence': confidence,
-                    'age': age,
-                    'cholesterol': cholesterol,
-                    'hdl': hdl,
-                    'systolic_bp': systolic_bp,
-                    'smoker': smoker,
-                    'diabetes': diabetes,
-                    'heart_rate': heart_rate,
-                    'heart_rate_status': heart_rate_status,
-                    'qt_interval': qt_interval,
-                    'pr_interval': pr_interval,
-                    # 'ecg_plot_filename': ecg_plot_filename,  # Keep for backward compatibility
-                    # 'ecg_plot_json': ecg_plot_json,  # Add this line
-                    # 'pdf_filename': pdf_filename,
-                    'framingham_risk': framingham_risk,
-                    'grace_score': grace_score,
-                    'classes': CLASSES,
-                    'class_probabilities': class_probabilities,
-                    'record_num': record_num,
-                    'all_beats_count': len(r_peaks) if r_peaks is not None else 0,
-                    'doctor_name': patient.get('Doctor_Name', 'Not Assigned'),
-                    'samples_to_show':waveform_data['samples_to_show'],
-                    'plot_json' : waveform_data['plot_json']
-                    }
-                    # 'samples_to_show': waveform_data.samples_to_show}
-                print("Result Data: ",result_data)
-
-                return render_template("result.html", **result_data)
-
-            except Exception as e:
-                flash(f"Analysis error: {str(e)}", "danger")
-                return redirect(url_for("automatic_analysis", patient_id=patient_id))
-
-        return render_template("automatic_analysis.html", patient=patient)
-
-    except Exception as e:
-        flash(f"System error: {str(e)}", "danger")
+    """Complete ECG analysis with waveform generation and proper error handling"""
+    
+    # 1. Validate patient ID format
+    if not re.match(r'^PT-\d{5}-\d{4}$', patient_id):
+        flash("Invalid Patient ID format. Expected format: PT-12345-2024", "danger")
         return redirect(url_for("input_form"))
 
+    # 2. Get patient data
+    patient = db_fetch_one("""
+        SELECT p.*, d.Username AS doctor_name 
+        FROM patient_profile p
+        LEFT JOIN doctor d ON p.Doctor_ID = d.Doctor_ID
+        WHERE p.Patient_ID = %s
+    """, (patient_id,))
+    
+    if not patient:
+        flash(f"Patient {patient_id} not found in database", "danger")
+        return redirect(url_for("input_form"))
 
+    
+    if request.method == "GET":
+        return render_template("automatic_analysis.html", patient=patient)
+
+    
+    try:
+        
+        record_num = request.form.get("record_num", "").strip()
+        if not record_num:
+            raise ValueError("ECG record number is required")
+        
+        age = int(request.form.get("age", patient.get("Age", 30)))
+        cholesterol = float(request.form.get("cholesterol", 150))
+        hdl = float(request.form.get("hdl", 40))
+        systolic_bp = float(request.form.get("systolic_bp", 120))
+        smoker = 1 if request.form.get("smoker") == "on" else 0
+        diabetes = 1 if request.form.get("diabetes") == "on" else 0
+
+       
+        if not (0 < age <= 120):
+            raise ValueError("Age must be between 1-120 years")
+        if not (0 < cholesterol <= 500):
+            raise ValueError("Cholesterol must be between 0-500 mg/dL")
+        if not (0 < hdl <= 100):
+            raise ValueError("HDL must be between 0-100 mg/dL")
+        if not (50 <= systolic_bp <= 250):
+            raise ValueError("Systolic BP must be between 50-250 mmHg")
+
+       
+        ecg_signal, fs, _, _ = load_ecg_sample(record_num)
+        if ecg_signal is None:
+            raise ValueError(f"Could not load ECG record {record_num}")
+        if len(ecg_signal) < 180:
+            raise ValueError(f"ECG signal too short ({len(ecg_signal)} samples)")
+
+        # Process ECG signal
+        ecg_filtered = butterworth_filter(ecg_signal, fs=fs)
+        r_peaks = detect_r_peaks(ecg_filtered, fs)
+        
+        # Calculate intervals
+        heart_rate, qt_interval, pr_interval, _ = compute_intervals(ecg_filtered, r_peaks, fs)
+        heart_rate_status = check_heart_rate(heart_rate)
+
+        # Prepare model input
+        model_input = preprocess_ecg(ecg_filtered)
+        
+        # Make prediction (handle model not loaded)
+        if model is None:
+            raise RuntimeError("ECG analysis model not loaded")
+            
+        main_pred, vfib_pred = model.predict(model_input, verbose=0)
+        main_pred = main_pred.flatten()
+        vfib_prob = vfib_pred.flatten()[0] * 100
+
+        # Interpret prediction
+        pred_class_idx = np.argmax(main_pred)
+        pred_class_name = CLASSES[pred_class_idx]['name']
+        confidence = main_pred[pred_class_idx] * 100
+        
+        # Ventricular fibrillation override
+        if vfib_prob > 50:
+            pred_class_idx = 3  # VF index
+            pred_class_name = CLASSES[3]['name']
+            confidence = vfib_prob
+
+        # Generate ECG waveform visualization
+        waveform_data = generate_ecg_waveform_plot_json(
+            record_num=record_num,
+            samples_to_show=min(2000, len(ecg_filtered)),
+            patient_id=patient_id,
+            ecg_signal_full=ecg_filtered,
+            fs=fs,
+            r_peaks_full=r_peaks
+        )
+        
+        # Verify waveform data structure
+        if not isinstance(waveform_data, str):
+            raise ValueError("ECG visualization generation failed")
+        
+        # Parse the JSON to verify it's valid
+        try:
+            plot_data = json.loads(waveform_data)
+        except json.JSONDecodeError:
+            raise ValueError("Invalid ECG plot data generated")
+
+        # Prepare class probabilities
+        class_probabilities = {}
+        for i, (class_id, info) in enumerate(CLASSES.items()):
+            prob = main_pred[i] * 100 if i != 3 else vfib_prob
+            class_probabilities[class_id] = {
+                'name': info['name'],
+                'probability': float(prob),
+                'color': info['color'],
+                'weight': info['weight']
+            }
+
+        # Prepare result data
+        result_data = {
+            'patient': patient,
+            'predicted_class': pred_class_name,
+            'predicted_class_id': CLASSES[pred_class_idx]['id'],
+            'confidence': float(confidence),
+            'class_probabilities': class_probabilities,
+            'heart_rate': float(heart_rate),
+            'heart_rate_status': heart_rate_status,
+            'qt_interval': float(qt_interval),
+            'pr_interval': float(pr_interval),
+            'framingham_risk': compute_framingham_risk(age, cholesterol, hdl, systolic_bp, smoker, diabetes),
+            'grace_score': compute_grace_score(age, systolic_bp, heart_rate),
+            'record_num': record_num,
+            'all_beats_count': len(r_peaks) if r_peaks is not None else 0,
+            'plot_json': waveform_data,
+            'samples_to_show': min(2000, len(ecg_filtered)),
+            'age': age,
+            'cholesterol': cholesterol,
+            'hdl': hdl,
+            'systolic_bp': systolic_bp,
+            'smoker': smoker,
+            'diabetes': diabetes,
+            'doctor_name': patient.get('doctor_name', 'N/A')
+        }
+
+        return render_template("result.html", **result_data)
+
+    except ValueError as ve:
+        flash(f"Input validation error: {str(ve)}", "warning")
+        app.logger.warning(f"Input validation failed for patient {patient_id}: {str(ve)}")
+    except RuntimeError as runtime_err:  # Changed from 're' to 'runtime_err'
+        flash(f"System error: {str(runtime_err)}", "danger")
+        app.logger.error(f"System error during analysis for {patient_id}: {str(runtime_err)}", exc_info=True)
+    except Exception as e:
+        flash("An unexpected error occurred during ECG analysis", "danger")
+        app.logger.error(f"Unexpected error analyzing {patient_id}: {str(e)}", exc_info=True)
+    
+    return redirect(url_for("automatic_analysis", patient_id=patient_id))
+
+# --- Report Generation Route ---
+# Applying previous fixes for JSON parameter encoding
 @app.route('/save_ecg_image', methods=['POST'])
 @login_required
 def save_ecg_image():
+    """Saves the ECG plot image sent from the frontend (Original Logic)."""
+    
     try:
-        verify_directories()  # Ensure directories exist
         
+        os.makedirs(ECG_IMAGE_DIR, exist_ok=True) 
+
         if not request.is_json:
+            app.logger.error("Save ECG image request received without JSON data.")
             return jsonify({'success': False, 'message': 'Missing JSON in request'}), 400
-            
+
         data = request.get_json()
+        app.logger.debug(f"Received data for image save: {data.keys()}") 
+
         
-        # Validate required fields
         required_fields = ['image_data', 'patient_id', 'record_num']
         if not all(field in data for field in required_fields):
+            app.logger.error(f"Missing required fields in image save request. Needed: {required_fields}, Got: {list(data.keys())}")
             return jsonify({'success': False, 'message': 'Missing required fields'}), 400
 
-        # Create the ECG images directory if it doesn't exist
-        ecg_dir = os.path.join(app.static_folder, 'ecg_images')
-        os.makedirs(ecg_dir, exist_ok=True)
         
-        # Generate a unique filename
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+       
         filename = f"ecg_{data['patient_id']}_{data['record_num']}_{timestamp}.png"
-        filepath = os.path.join(ecg_dir, filename)
+        filepath = os.path.join(ECG_IMAGE_DIR, filename) 
+
         
-        # Save the image
         try:
             # Handle data URI format if present
-            img_data = data['image_data'].split('base64,')[1] if 'base64,' in data['image_data'] else data['image_data']
-            
+            img_data_str = data['image_data']
+            img_data = img_data_str.split('base64,')[1] if 'base64,' in img_data_str else img_data_str
+
             with open(filepath, 'wb') as f:
                 f.write(base64.b64decode(img_data))
-            
+
+            app.logger.info(f"ECG Image saved: {filepath}")
+            # Return the URL path using url_for for correctness
+            relative_path = url_for('static', filename=f'ecg_images/{filename}')
             return jsonify({
                 'success': True,
-                'path': f"/static/ecg_images/{filename}"
+                'path': relative_path # Return the URL path
             })
-            
+
+        except (TypeError, ValueError) as decode_err:
+             app.logger.error(f"Error decoding image data for save: {decode_err}")
+             return jsonify({'success': False, 'message': 'Invalid image data received.'}), 400
         except Exception as e:
-            return jsonify({
-                'success': False,
-                'message': f"Failed to save image: {str(e)}"
-            }), 500
-            
+            app.logger.error(f"Error writing image file {filepath}: {e}", exc_info=True)
+            return jsonify({'success': False, 'message': f"Failed to save image file: {str(e)}"}), 500
+
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f"Server error: {str(e)}"
-        }), 500
-def verify_directories():
-    required_dirs = [
-        os.path.join(app.static_folder, 'ecg_images')
-    ]
-    
-    for directory in required_dirs:
-        os.makedirs(directory, exist_ok=True)
-        print(f"Verified directory: {directory}")
+        # Catch errors in request handling/validation
+        app.logger.error(f"Server error in /save_ecg_image route: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': f"Server error: {str(e)}"}), 500
 
-@app.route('/debug_static_dir')
-def debug_static_dir():
-    static_dir = os.path.join(app.root_path, 'static', 'ecg_images')
-    exists = os.path.exists(static_dir)
-    can_write = False
-    if exists:
-        try:
-            test_file = os.path.join(static_dir, 'test.txt')
-            with open(test_file, 'w') as f:
-                f.write("test")
-            os.remove(test_file)
-            can_write = True
-        except Exception as e:
-            pass
-    return jsonify({
-        'static_dir': static_dir,
-        'exists': exists,
-        'writable': can_write,
-        'app_root': app.root_path
-    })
-
-
+# --- Report Generation Route ---
 @app.route('/generate_report/<patient_id>')
 @login_required
 def generate_report(patient_id):
@@ -1172,11 +969,12 @@ def generate_report(patient_id):
                 flash(f"Missing required parameter: {param}", "danger")
                 return redirect(url_for('automatic_analysis', patient_id=patient_id))
 
-        # Get patient data
+        # Get patient data with doctor information
         cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
         try:
+            # First try to get patient with doctor name from join
             cursor.execute("""
-                SELECT p.*, d.Username AS Doctor_Name 
+                SELECT p.*, d.Username AS doctor_name, d.Doctor_ID
                 FROM patient_profile p
                 LEFT JOIN doctor d ON p.Doctor_ID = d.Doctor_ID
                 WHERE p.Patient_ID = %s
@@ -1186,10 +984,22 @@ def generate_report(patient_id):
             if not patient:
                 flash("Patient not found", "danger")
                 return redirect(url_for("input_form"))
+            
+            # Get doctor name and ID
+            doctor_id = patient.get('Doctor_ID')
+            doctor_name = patient.get('doctor_name', "Not assigned")
+            
+        except Exception as db_error:
+            print(f"Database error: {db_error}")
+            doctor_name = "Not available"
+            doctor_id = None
         finally:
             cursor.close()
 
-        # Process all parameters with defaults
+        
+        report_date = datetime.now()
+        report_id = f"ECG-{report_date.strftime('%Y%m%d')}-{patient_id}"
+        
         data = {
             'record_num': request.args.get('record_num'),
             'predicted_class': request.args.get('predicted_class'),
@@ -1205,20 +1015,20 @@ def generate_report(patient_id):
             'smoker': request.args.get('smoker', '0') == '1',
             'diabetes': request.args.get('diabetes', '0') == '1',
             'all_beats_count': int(request.args.get('all_beats_count', 0)),
-            'class_probabilities': {},
-            'ecg_image': request.args.get('ecg_image', '')
+            'ecg_image': request.args.get('ecg_image', ''),
+            'doctor_name': doctor_name
         }
 
         # Process class probabilities
+        class_probabilities = {}
         try:
             class_probs = request.args.get('class_probabilities')
             if class_probs:
-                data['class_probabilities'] = json.loads(class_probs)
+                class_probabilities = json.loads(class_probs)
         except json.JSONDecodeError as e:
             print(f"Error parsing class probabilities: {e}")
-            data['class_probabilities'] = {}
 
-        # Find ECG image - first check provided path, then static directory
+        # Find ECG image path
         ecg_image_path = None
         static_dir = os.path.join(app.root_path, 'static', 'ecg_images')
         
@@ -1232,41 +1042,131 @@ def generate_report(patient_id):
                 ecg_files.sort(reverse=True)
                 ecg_image_path = f"/static/ecg_images/{ecg_files[0]}"
 
-        # Prepare report context
-        report_date = datetime.now()
+        
+        try:
+            cursor = mysql.connection.cursor()
+            
+            # Convert boolean values to MySQL compatible 1/0
+            smoker = 1 if data['smoker'] else 0
+            diabetes = 1 if data['diabetes'] else 0
+            
+            cursor.execute("""
+                INSERT INTO ecg_reports (
+                    report_id, patient_id, doctor_id, report_date, record_num,
+                    predicted_class, confidence, heart_rate, qt_interval, pr_interval,
+                    framingham_risk, grace_score, systolic_bp, cholesterol, hdl,
+                    smoker, diabetes, all_beats_count, class_probabilities, ecg_image_path
+                ) VALUES (
+                    %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s, %s
+                )
+            """, (
+                report_id, patient_id, doctor_id, report_date, data['record_num'],
+                data['predicted_class'], data['confidence'], data['heart_rate'], 
+                data['qt_interval'], data['pr_interval'],
+                data['framingham_risk'], data['grace_score'], data['systolic_bp'], 
+                data['cholesterol'], data['hdl'],
+                smoker, diabetes, data['all_beats_count'], 
+                json.dumps(class_probabilities) if class_probabilities else None,
+                ecg_image_path
+            ))
+            mysql.connection.commit()
+            
+        except Exception as e:
+            mysql.connection.rollback()
+            print(f"Database save error: {str(e)}")
+            
+
+        
         context = {
             'patient': patient,
-            'doctor_name': patient.get('Doctor_Name', 'Not assigned'),
+            'doctor_name': doctor_name,
             'age': patient.get('Age', 'N/A'),
             'gender': patient.get('Gender', 'N/A'),
             'report_date': report_date,
             'current_year': report_date.year,
-            'report_id': f"ECG-{report_date.strftime('%Y%m%d')}-{patient_id}",
+            'report_id': report_id,
             'ecg_image_path': ecg_image_path,
             'classes': CLASSES,
-            **data
+            **data,
+            'class_probabilities': class_probabilities,
+            'pdf_mode': True  
         }
 
-        # Handle PDF download request
+        
         if request.args.get('download') == 'pdf':
-            # Generate HTML first
-            html = render_template('report.html', **context)
+           
+            report_content = render_template('report.html', **context)
             
-            # Create PDF in memory
+            
+            if ecg_image_path:
+                try:
+                    import base64
+                    image_path = os.path.join(app.root_path, ecg_image_path.lstrip('/'))
+                    if os.path.exists(image_path):
+                        with open(image_path, "rb") as image_file:
+                            encoded_string = base64.b64encode(image_file.read()).decode('utf-8')
+                        report_content = report_content.replace(
+                            f'src="{ecg_image_path}"',
+                            f'src="data:image/png;base64,{encoded_string}"'
+                        )
+                except Exception as e:
+                    app.logger.error(f"Error encoding ECG image: {str(e)}")
+
+           
+            html = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <title>{context['report_id']}</title>
+                <style>
+                    @page {{
+                        margin: 1.5cm;
+                        size: A4;
+                    }}
+                    body {{
+                        font-family: Arial, sans-serif;
+                        line-height: 1.5;
+                        color: #333;
+                        margin: 0;
+                        padding: 20px;
+                        font-size: 12px;
+                    }}
+                    .report-container {{
+                        max-width: 800px;
+                        margin: 0 auto;
+                    }}
+                    img {{
+                        max-width: 100%;
+                        height: auto;
+                    }}
+                </style>
+            </head>
+            <body>
+                {report_content}
+            </body>
+            </html>
+            """
+
             pdf = BytesIO()
-            pisa_status = pisa.CreatePDF(
-                html,
-                dest=pdf,
-                encoding='UTF-8',
-                link_callback=lambda uri, _: uri
-            )
             
-            if pisa_status.err:
-                app.logger.error(f"PDF generation error: {pisa_status.err}")
-                flash("Error generating PDF report", "danger")
-                return redirect(url_for('automatic_analysis', patient_id=patient_id))
             
-            # Prepare PDF response
+            try:
+                from weasyprint import HTML
+                HTML(string=html).write_pdf(pdf)
+            except ImportError:
+                # Fallback to xhtml2pdf
+                pisa_status = pisa.CreatePDF(
+                    html,
+                    dest=pdf,
+                    encoding='UTF-8'
+                )
+                if pisa_status.err:
+                    raise Exception(f"PDF generation error: {pisa_status.err}")
+            
             pdf.seek(0)
             response = make_response(pdf.getvalue())
             response.headers['Content-Type'] = 'application/pdf'
@@ -1275,202 +1175,250 @@ def generate_report(patient_id):
             )
             return response
 
+        context['pdf_mode'] = False
         return render_template('report.html', **context)
-
+        
     except Exception as e:
         app.logger.error(f"Report generation error: {str(e)}\n{traceback.format_exc()}")
-        flash(f"Error generating report: {str(e)}", "danger")
+        
         return redirect(url_for('automatic_analysis', patient_id=patient_id))
 
 
-@app.context_processor
-def inject_pytz():
-   return dict(pytz=pytz)
 
-def generate_patient_id():
-    current_year = datetime.now().year
-    cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
+def verify_directories():
+    required_dirs = [
+        os.path.join(app.static_folder, 'ecg_images')
+    ]
     
+    for directory in required_dirs:
+        os.makedirs(directory, exist_ok=True)
+        print(f"Verified directory: {directory}")
+
+def _generate_new_patient_id():
+    """Generates next patient ID."""
+    
+    current_year = datetime.now().year
     try:
-        cursor.execute("""
-            SELECT Patient_ID 
-            FROM patient_profile 
-            WHERE Patient_ID LIKE CONCAT('PT-%%', %s) 
-            ORDER BY Patient_ID DESC 
+        sql = """
+            SELECT Patient_ID FROM patient_profile
+            WHERE Patient_ID LIKE %s
+            ORDER BY CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(Patient_ID, '-', 2), '-', -1) AS UNSIGNED) DESC
             LIMIT 1
-        """, (current_year,))
-        
-        last_patient = cursor.fetchone()
-        if last_patient:
-            last_num = int(last_patient['Patient_ID'].split('-')[1])
-            new_num = last_num + 1
+        """
+        param = f'PT-%-{current_year}'
+        last_patient = db_fetch_one(sql, (param,))
+        if last_patient and last_patient.get('Patient_ID'):
+            try:
+                last_num = int(last_patient['Patient_ID'].split('-')[1])
+                new_num = last_num + 1
+            except (IndexError, ValueError):
+                 app.logger.warning(f"Could not parse last patient ID: {last_patient['Patient_ID']}. Starting sequence.")
+                 new_num = 10001
         else:
             new_num = 10001
-        
-        new_patient_id = f"PT-{new_num}-{current_year}"
-        return new_patient_id
-    except MySQLdb.Error as e:
-        app.logger.error(f"Database error generating patient ID: {str(e)}")
-        raise
-    finally:
-        cursor.close()
+        return f"PT-{new_num}-{current_year}"
+    except Exception as e:
+        app.logger.error(f"Failed to generate new Patient ID: {e}", exc_info=True)
+        raise RuntimeError("Could not generate Patient ID") from e
 
-def validate_doctor_id(doctor_id):
-    pattern = r'^DR-\d{3}-\d{4}$'
-    return re.match(pattern, doctor_id) is not None
+def _validate_patient_form(form):
+    
+    errors = {}
+    name = form.get('Patient_Name', '').strip()
+    age_str = form.get('Age', '').strip()
+    gender = form.get('Gender', '')
+    address = form.get('Address', '').strip()
+    email = form.get('Email_ID', '').strip()
+    phone = form.get('Personal_Contact', '').strip()
+    emergency_phone = form.get('Emergency_Contact', '').strip()
+    doctor_id = form.get('Doctor_ID', '')
 
-def validate_email(email):
-    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-    return re.match(pattern, email) is not None
+    if not name: errors['Patient_Name'] = "Patient name is required."
+    if not address: errors['Address'] = "Address is required."
+    if not gender: errors['Gender'] = "Please select a gender."
+    if not doctor_id: errors['Doctor_ID'] = "Please assign a doctor."
+    try: 
+        age = int(age_str)
+        if not (0 < age <= 150): raise ValueError()
+    except (ValueError, TypeError): errors['Age'] = "Please enter a valid age (1-150)."
+    if not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', email): errors['Email_ID'] = "Please enter a valid email address." # Email
+    if not re.match(r'^\d{10}$', phone): errors['Personal_Contact'] = "Enter a 10-digit phone number." # Phone
+    if not re.match(r'^\d{10}$', emergency_phone): errors['Emergency_Contact'] = "Enter a 10-digit emergency phone number." # Emergency Phone
+    elif phone and phone == emergency_phone: errors['Emergency_Contact'] = "Emergency contact must differ from personal contact."
+    #
+    if doctor_id and not db_fetch_one("SELECT 1 FROM doctor WHERE Doctor_ID = %s", (doctor_id,)):
+         errors['Doctor_ID'] = "The selected Doctor ID does not exist."
+    app.logger.debug(f"Patient form validation errors: {errors if errors else 'None'}")
+    return errors
 
 @app.route("/patient_registration", methods=["GET", "POST"])
 @login_required
 def patient_registration():
-    patient = None
+    """Page for staff to register new patients."""
+    if current_user.user_type != 'staff':
+        flash("Access restricted to staff members.", "warning")
+        return redirect(url_for('staff_login'))
+
+    patient = None 
     errors = {}
-    form_data = {}
-    
+    form_data = request.form if request.method == 'POST' else {}
+    doctors = db_fetch_all("SELECT Doctor_ID, Username FROM doctor ORDER BY Username")
+
     if request.method == "POST":
-        doctor_id = request.form.get("Doctor_ID", "")
-        patient_name = request.form.get("Patient_Name", "")
-        age = request.form.get("Age", "")
-        gender = request.form.get("Gender", "")
-        address = request.form.get("Address", "")
-        email_id = request.form.get("Email_ID", "")
-        personal_contact = request.form.get("Personal_Contact", "")
-        emergency_contact = request.form.get("Emergency_Contact", "")
-        
-        form_data = {
-            "Doctor_ID": doctor_id,
-            "Patient_Name": patient_name,
-            "Age": age,
-            "Gender": gender,
-            "Address": address,
-            "Email_ID": email_id,
-            "Personal_Contact": personal_contact,
-            "Emergency_Contact": emergency_contact
-        }
-        
-        # Validation checks
-        if not patient_name.strip():
-            errors["Patient_Name"] = "Please enter the patient's full name."
-        
-        try:
-            age = int(age)
-            if age < 1 or age > 150:
-                errors["Age"] = "Please enter a valid age between 1 and 150."
-        except (ValueError, TypeError):
-            errors["Age"] = "Please enter a valid age."
-        
-        if not gender:
-            errors["Gender"] = "Please select a gender."
-        
-        if not address.strip():
-            errors["Address"] = "Please enter the patient's address."
-        
-        if not email_id or not validate_email(email_id):
-            errors["Email_ID"] = "Please enter a valid email address."
-        
-        if not personal_contact or not personal_contact.isdigit() or len(personal_contact) != 10:
-            errors["Personal_Contact"] = "Please enter a valid 10-digit phone number."
-        
-        if not emergency_contact or not emergency_contact.isdigit() or len(emergency_contact) != 10:
-            errors["Emergency_Contact"] = "Please enter a valid 10-digit phone number."
-        
-        if personal_contact == emergency_contact:
-            errors["Emergency_Contact"] = "Personal contact and emergency contact cannot be the same."
-        
-        if not doctor_id or not validate_doctor_id(doctor_id):
-            errors["Doctor_ID"] = "Please enter a valid doctor ID in the format DR-001-2024."
-        
-        # Check for duplicate email
-        if not errors.get("Email_ID"):
+        errors = _validate_patient_form(request.form)
+        if not errors:
             try:
-                cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
-                cursor.execute("SELECT * FROM patient_profile WHERE Email_ID = %s", (email_id,))
-                existing_email = cursor.fetchone()
-                if existing_email:
-                    errors["Email_ID"] = "Email ID already exists. Please use a different email address."
-                cursor.close()
-            except MySQLdb.Error as e:
-                flash(f"Database error: {str(e)}", "danger")
-        
-        if errors:
-            return render_template("patient_registration.html", errors=errors, form_data=form_data, patient=patient)
-        
-        try:
-            patient_id = generate_patient_id()
+                new_patient_id = _generate_new_patient_id()
+               
+                created_at_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                sql_insert = """
+                    INSERT INTO patient_profile
+                           (Patient_ID, Patient_Name, Age, Gender, Address, Email_ID, Personal_Contact,
+                            Emergency_Contact, Doctor_ID, Created_At, Staff_Username)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """
+                params = (
+                    new_patient_id, request.form['Patient_Name'].strip(), int(request.form['Age']),
+                    request.form['Gender'], request.form['Address'].strip(), request.form['Email_ID'].strip(),
+                    request.form['Personal_Contact'].strip(), request.form['Emergency_Contact'].strip(),
+                    request.form['Doctor_ID'], created_at_str, 
+                    current_user.username 
+                )
+                db_execute(sql_insert, params, commit=True)
+                flash(f"Patient '{request.form['Patient_Name']}' registered! ID: {new_patient_id}", "success")
+                app.logger.info(f"Patient {new_patient_id} registered by staff {current_user.id}")
+               
+                patient = db_fetch_one("SELECT * FROM patient_profile WHERE Patient_ID = %s", (new_patient_id,))
+                form_data = {} 
 
-            cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
-            cursor.execute(
-                """INSERT INTO patient_profile 
-                   (Patient_ID, Patient_Name, Age, Gender, Address, Email_ID, Personal_Contact, 
-                    Emergency_Contact, Doctor_ID, Created_At, Staff_Username)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
-                (patient_id, patient_name, age, gender, address, email_id, personal_contact,
-                 emergency_contact, doctor_id, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), current_user.username)
-            )
-            mysql.connection.commit()
-            # flash("Patient registered successfully!", "success")
-            
-            cursor.execute("SELECT * FROM patient_profile WHERE Patient_ID = %s", (patient_id,))
-            patient = cursor.fetchone()
-            cursor.close()
-            
-        except MySQLdb.Error as e:
-            flash(f"Error registering patient: {str(e)}", "danger")
+            except Exception as e:
+                app.logger.error(f"Patient registration failed: {e}", exc_info=True)
+                flash("An error occurred during registration.", "danger")
+                
+        else:
+            flash("Please correct the indicated errors.", "warning")
+           
 
-    return render_template("patient_registration.html", patient=patient, errors=errors, form_data=form_data)
+    return render_template("patient_registration.html",
+                           patient=patient, errors=errors, form_data=form_data, doctors=doctors)
+
 
 @app.route("/edit_patient/<patient_id>", methods=["GET", "POST"])
 @login_required
 def edit_patient(patient_id):
-    cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
-    try:
-        if request.method == "POST":
-            patient_name = request.form.get("Patient_Name", "")
-            age = request.form.get("Age", "")
-            gender = request.form.get("Gender", "")
-            address = request.form.get("Address", "")
-            email_id = request.form.get("Email_ID", "")
-            personal_contact = request.form.get("Personal_Contact", "")
-            emergency_contact = request.form.get("Emergency_Contact", "")
-            doctor_id = request.form.get("Doctor_ID", "")
+    """Page for staff to edit existing patient details."""
+    if current_user.user_type != 'staff':
+         flash("Access restricted to staff members.", "warning")
+         return redirect(url_for('staff_login'))
 
-            cursor.execute(
-                """UPDATE patient_profile 
-                   SET Patient_Name = %s, Age = %s, Gender = %s, Address = %s, Email_ID = %s, 
-                       Personal_Contact = %s, Emergency_Contact = %s, Doctor_ID = %s
-                   WHERE Patient_ID = %s""",
-                (patient_name, age, gender, address, email_id, personal_contact,
-                 emergency_contact, doctor_id, patient_id)
-            )
-            mysql.connection.commit()
-            # flash("Patient details updated successfully!", "success")
-            return redirect(url_for("patient_registration"))
-        
-        cursor.execute("SELECT * FROM patient_profile WHERE Patient_ID = %s", (patient_id,))
-        patient = cursor.fetchone()
-        if not patient:
-            flash("Patient not found", "danger")
-            return redirect(url_for("patient_registration"))
-        
-        return render_template("edit_patient.html", patient=patient)
-    except MySQLdb.Error as e:
-        flash(f"Error updating patient details: {str(e)}", "danger")
-    finally:
-        cursor.close()
+    errors = {}
+    doctors = db_fetch_all("SELECT Doctor_ID, Username FROM doctor ORDER BY Username")
+    form_data_to_render = None 
+
+    if request.method == "POST":
+        errors = _validate_patient_form(request.form)
+        if not errors:
+            try:
+                
+                sql_update = """
+                    UPDATE patient_profile SET
+                        Patient_Name = %s, Age = %s, Gender = %s, Address = %s, Email_ID = %s,
+                        Personal_Contact = %s, Emergency_Contact = %s, Doctor_ID = %s
+                    WHERE Patient_ID = %s
+                """
+                params = (
+                    request.form['Patient_Name'].strip(), int(request.form['Age']),
+                    request.form['Gender'], request.form['Address'].strip(), request.form['Email_ID'].strip(),
+                    request.form['Personal_Contact'].strip(), request.form['Emergency_Contact'].strip(),
+                    request.form['Doctor_ID'], patient_id
+                )
+                db_execute(sql_update, params, commit=True)
+                app.logger.info(f"Patient {patient_id} updated by staff {current_user.id}")
+                return redirect(url_for('patient_registration'))
+            except Exception as e:
+                 app.logger.error(f"Failed to update patient {patient_id}: {e}", exc_info=True)
+                 flash("Error updating patient details.", "danger")
+                
+                 form_data_to_render = request.form
+        else:
+            flash("Please correct the indicated errors.", "warning")
+           
+            form_data_to_render = request.form
+
+   
+    if form_data_to_render is None:
+        patient_data_from_db = db_fetch_one("SELECT * FROM patient_profile WHERE Patient_ID = %s", (patient_id,))
+        if not patient_data_from_db:
+            flash(f"Patient {patient_id} not found.", "danger")
+            return redirect(url_for('patient_registration'))
+        form_data_to_render = patient_data_from_db 
+
     
-    return redirect(url_for("patient_registration"))
+    patient_for_template = dict(form_data_to_render) 
+    
+    patient_for_template['Patient_ID'] = patient_id
 
+    return render_template("edit_patient.html",
+                           patient=patient_for_template, 
+                           form_data=form_data_to_render, 
+                           patient_id=patient_id,
+                           errors=errors,
+                           doctors=doctors)
+
+
+# --- Utility Routes ---
 @app.route("/debug")
 def debug():
+    """Debug route showing session info (REMOVE IN PRODUCTION)."""
+    app.logger.info("Accessing debug route.")
     return jsonify({
         "user_id": session.get("_user_id"),
         "is_authenticated": current_user.is_authenticated,
-        "user_type": current_user.user_type if current_user.is_authenticated else None
+        "user_type": getattr(current_user, 'user_type', None),
+        "username": getattr(current_user, 'username', None),
+        "session_contents": dict(session)
     })
 
+@app.route('/debug_static_dir')
+def debug_static_dir_check():
+    """Check static dir status (REMOVE IN PRODUCTION)."""
+    static_dir = ECG_IMAGE_DIR
+    exists = os.path.exists(static_dir)
+    is_writable = False
+    error_msg = None
+    if exists:
+        test_file = os.path.join(static_dir, f'write_test_{uuid.uuid4()}.tmp')
+        try:
+            with open(test_file, 'w') as f: f.write("test")
+            os.remove(test_file)
+            is_writable = True
+            app.logger.debug(f"Static image directory {static_dir} is writable.")
+        except Exception as e:
+            error_msg = str(e)
+            app.logger.warning(f"Static image directory {static_dir} is NOT writable: {e}")
+
+    return jsonify({
+        'static_dir': static_dir,
+        'exists': exists,
+        'writable': is_writable,
+        'write_error': error_msg,
+    })
+
+
+# --- Main Application Runner ---
 if __name__ == "__main__":
-    os.makedirs("static", exist_ok=True)
-    app.run(debug=True)
+    
+    log_format = '%(asctime)s [%(levelname)s] %(name)s (%(module)s:%(lineno)d) - %(message)s'
+    logging.basicConfig(level=logging.INFO, format=log_format)
+    
+    app.logger.setLevel(logging.INFO)
+
+    
+    if not PDF_GENERATION_AVAILABLE:
+        app.logger.warning("PDF generation disabled (xhtml2pdf not found).")
+    if model is None:
+        app.logger.warning("ML Model was not loaded. Analysis features will fail.")
+
+    app.logger.info("Starting Flask ECG Application...")
+    
+    app.run(debug=True)  
