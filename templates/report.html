@@ -628,7 +628,7 @@
         font-weight: 700;
     }
     
-    /* ECG Image Container */
+ 
     .ecg-image-container {
         width: 100%;
         text-align: center;
@@ -643,7 +643,7 @@
         height: auto;
     }
     
-    /* Print-specific styles */
+ 
     @media print {
         body {
             padding: 0;
@@ -668,21 +668,19 @@
             display: none;
         }
         
-        /* Ensure page breaks don't split important sections */
         .section {
             page-break-inside: avoid;
         }
         
-        /* Add padding at bottom of each page */
         @page {
             margin: 1.5cm;
             size: A4;
         }
     }
 </style>
-<script>// Add this to your result.html
+<script>
     document.getElementById('downloadPdf').addEventListener('click', function(e) {
-        // Validate required fields
+        
         if (!document.getElementById('predicted_class').value) {
             alert('Missing required analysis data');
             e.preventDefault();

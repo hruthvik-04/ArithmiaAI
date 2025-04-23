@@ -303,7 +303,7 @@
     .d-none {
         display: none;
     }
-    /* Stats Display */
+ 
     .stats-display {
         margin: 15px 0;
         padding: 10px;
@@ -315,7 +315,6 @@
     .stat-item {
         text-align: center;
     }
-    /* Error Display */
     .alert-danger {
         padding: 15px;
         border-radius: 5px;
@@ -323,7 +322,7 @@
         color: #721c24;
         border: 1px solid #f5c6cb;
     }
-    /* Responsive Design */
+
     @media (max-width: 992px) {
         .patient-card,
         .action-buttons-container,
@@ -603,19 +602,17 @@
                 const base64String = plotData.data[0].y.bdata;
                 console.log("Found base64 encoded data, attempting to decode...");
                 
-                // Decode base64 data
+               
                 const binaryString = atob(base64String);
                 
-                // Create a buffer to hold the binary data
+           
                 const bytes = new Uint8Array(binaryString.length);
                 for (let i = 0; i < binaryString.length; i++) {
                     bytes[i] = binaryString.charCodeAt(i);
                 }
+                            const floatArray = new Float64Array(bytes.buffer);
                 
-                // Convert to Float64Array (ECG data is typically float64)
-                const floatArray = new Float64Array(bytes.buffer);
-                
-                // Replace the y property with the decoded array
+             
                 plotData.data[0].y = Array.from(floatArray);
                 
                 console.log("Successfully decoded ECG data, first few values:", 
@@ -628,25 +625,24 @@
             console.log("No encoded data found or data already in proper format");
         }
         
-        // Ensure we have proper x-axis values if needed
+
         if (plotData.data[0] && plotData.data[0].y && (!plotData.data[0].x || plotData.data[0].x.length === 0)) {
             console.log("Generating x-axis values...");
             plotData.data[0].x = Array.from({ length: plotData.data[0].y.length }, (_, i) => i);
         }
         
-        // Minimal modifications to preserve backend settings
+    
         if (plotData.data[0]) {
-            // Only set these if not already set
             plotData.data[0].mode = plotData.data[0].mode || "lines";
             plotData.data[0].type = plotData.data[0].type || "scatter";
             
-            // Ensure line properties exist but don't override if already set
+    
             plotData.data[0].line = plotData.data[0].line || {};
             plotData.data[0].line.color = plotData.data[0].line.color || 'rgb(0, 0, 0)';
             plotData.data[0].line.width = plotData.data[0].line.width || 1.5;
         }
         
-        // Ensure the R-peaks trace (if exists) has proper styling
+       
         if (plotData.data[1]) {
             plotData.data[1].mode = plotData.data[1].mode || "markers";
             plotData.data[1].marker = plotData.data[1].marker || {
@@ -657,7 +653,7 @@
             };
         }
         
-        // Render the plot with minimal modifications
+    
         const graphDiv = document.getElementById('ecg-plotly-graph');
 
         Plotly.newPlot(graphDiv, plotData.data, plotData.layout)
@@ -678,10 +674,10 @@
                 throw new Error("Failed to render ECG plot. " + err.message);
             });
         
-        // Track current zoom range
+    
         let currentRange = null;
         
-        // Update visible beats count based on current view
+      
         function updateVisibleBeatsCount() {
             if (!plotData.data[1] || !plotData.data[1].x) return;
             
@@ -695,7 +691,7 @@
             document.getElementById('visible-beats-count').textContent = visiblePeaks;
         }
     
-        // Track zoom/pan events
+    
         graphDiv.on('plotly_relayout', function(eventdata) {
             if (eventdata['xaxis.range[0]'] !== undefined && eventdata['xaxis.range[1]'] !== undefined) {
                 currentRange = [eventdata['xaxis.range[0]'], eventdata['xaxis.range[1]']];
@@ -726,7 +722,7 @@
             console.log('Starting ECG capture...');
             const graphDiv = document.getElementById('ecg-plotly-graph');
             
-            // Generate the image
+         
             const imgData = await Plotly.toImage(graphDiv, {
                 format: 'png',
                 width: 1000,
@@ -736,7 +732,7 @@
             
             console.log('ECG image generated, sending to server...');
             
-            // Send to server
+            
             const response = await fetch('/save_ecg_image', {
                 method: 'POST',
                 headers: {
@@ -778,10 +774,9 @@
         spinner.classList.remove('d-none');
         
         try {
-            // First capture the ECG image
             const captureResult = await captureAndSaveECG();
             
-            // Then submit the form with the image path
+           
             const form = document.getElementById('reportForm');
             const imageInput = document.createElement('input');
             imageInput.type = 'hidden';
@@ -792,7 +787,7 @@
             form.submit();
         } catch (error) {
             console.error("Error generating report:", error);
-            // Fallback without image
+          
             document.getElementById('reportForm').submit();
         }
     }

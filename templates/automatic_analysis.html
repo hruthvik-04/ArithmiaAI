@@ -122,13 +122,13 @@
         font-weight: bold;
     }
     
-    /* Initially hide results container during loading */
+
     #resultsContainer.loading {
         opacity: 0.3;
         pointer-events: none;
     }
     
-    /* Hide ECG plot during loading */
+
     #ecg-plot.loading {
         display: none;
     }
@@ -301,7 +301,7 @@
 <script src="https://cdn.plot.ly/plotly-2.20.0.min.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Plot ECG graph if available (only when not in loading state)
+ 
         {% if ecg_graph_json and ecg_results %}
         try {
             var graph = {{ ecg_graph_json|safe }};
@@ -314,27 +314,24 @@
         }
         {% endif %}
 
-        // Form submission handler
+    
         document.getElementById('ecgAnalysisForm').addEventListener('submit', function(e) {
             e.preventDefault();
             
-            // Disable the submit button
+            
             document.getElementById('analyzeBtn').disabled = true;
             
-            // Show loading overlay
             const loadingModal = document.getElementById('loadingModal');
             loadingModal.style.display = 'flex';
             
-            // Hide results and ECG plot during loading
             document.getElementById('resultsContainer').classList.add('loading');
             const ecgPlot = document.getElementById('ecg-plot');
             if (ecgPlot) ecgPlot.classList.add('loading');
             
-            // Get progress elements
             const progressFill = document.querySelector('.progress-fill');
             const substeps = document.querySelectorAll('.substep');
             
-            // Animate steps with delays
+           
             const steps = ['step1', 'step2', 'step3', 'step4', 'step5'];
             const stepTexts = [
                 "Initializing AI Engine & Loading ECG Data",
@@ -344,35 +341,35 @@
                 " "
             ];
             
-            // Reset all steps first
+            
             steps.forEach(stepId => {
                 const step = document.getElementById(stepId);
                 step.classList.remove('active');
                 step.textContent = stepTexts[steps.indexOf(stepId)];
             });
             
-            // Reset substeps
+     
             substeps.forEach(substep => substep.classList.remove('active'));
             
-            // Activate steps sequentially with delays
+       
             steps.forEach((stepId, index) => {
                 setTimeout(() => {
                     const step = document.getElementById(stepId);
                     
-                    // Deactivate previous step (if any)
+                
                     if (index > 0) {
                         document.getElementById(steps[index-1]).classList.remove('active');
                     }
                     
-                    // Activate current step
+                
                     step.classList.add('active');
                     
-                    // Update progress bar
+                 
                     progressFill.style.width = `${(index + 1) * 20}%`;
                     
-                    // Special handling for analysis step (step4)
+                    
                     if (index === 3) {
-                        // Animate substeps
+                    
                         substeps.forEach((substep, subIndex) => {
                             setTimeout(() => {
                                 substep.classList.add('active');
@@ -380,20 +377,20 @@
                         });
                     }
                     
-                    // Special case for last step
+                    
                     if (index === steps.length - 1) {
                         setTimeout(() => {
                             step.textContent = " ";
                             progressFill.style.width = "100%";
                             
-                            // After all steps complete, submit the form
+                           
                             setTimeout(() => {
                                 loadingModal.style.display = 'none';
                                 e.target.submit();
                             }, 1000);
                         }, 500);
                     }
-                }, index * 2000); // 2 second intervals
+                }, index * 2000); 
             });
         });
     });
