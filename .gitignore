@@ -22,6 +22,9 @@ templates/plotlyrun.html
 templates/resulttemplate.html
 templates/ecg_waveform.html
 templates/index.html
+templates/resultlatest.html
+templates/index.html
+templates/ecg_waveform.html
 static/*.pdf
 static/*.png
 model/model.hdf5
