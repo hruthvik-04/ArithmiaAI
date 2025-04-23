@@ -1,5 +1,7 @@
 
 
 
-# AI-ECG-ANALYSIS-MINDTECK
+
+
+# ArithmiaAI
 
