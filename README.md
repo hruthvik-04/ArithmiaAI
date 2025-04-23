@@ -35,7 +35,7 @@ cleaned_ecg = ecg_clean(raw_signal, sampling_rate=100)
   - Ventricular Fibrillation
   - Ventricular Tachycardia
   - Heart Block
-  - Fusiom
+  - Fusion
 - Trained on **MIT-BIH** and **PTB-XL** datasets
 
 ### 3. **Risk Assessment**
