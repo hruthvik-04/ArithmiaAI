@@ -278,8 +278,8 @@ mysql -u root -p < schema_setup.sql
 
 1.  **Clone the Repository:**
     ```bash
-    git clone https://github.com/hruthvik-04/AI-ECG-ANALYSIS-PROJECT.git
-    cd AI-ECG-ANALYSIS-PROJECT
+    git clone https://github.com/hruthvik-04/ArithmiaAI.git
+    cd ArithmiaAI
     ```
 
 2.  **Create Virtual Environment:**
