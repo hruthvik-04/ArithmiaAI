@@ -8,7 +8,7 @@
     width: 36px;
     height: 36px;
     border-radius: 4px;
-    background-color: #0d6efd; /* Bootstrap primary color */
+    background-color: #0d6efd; 
     padding: 0;
     display: flex;
     align-items: center;
@@ -16,19 +16,19 @@
   }
 
   .btn-square:hover {
-    background-color: #0a58ca; /* Darker shade for hover */
+    background-color: #0a58ca; 
   }
 
   .error-message {
     color: #dc3545;
     font-size: 0.875em;
     margin-top: 0.25rem;
-    display: none; /* Hidden by default */
+    display: none;
   }
 
   .form-group {
     margin-bottom: 1.5rem;
-    position: relative; /* For positioning error messages */
+    position: relative; 
   }
 
   .form-control.invalid,
@@ -41,7 +41,7 @@
     border-color: #28a745;
   }
 
-  /* Make error messages appear next to the field */
+
   .error-message.field-error {
     display: block;
     position: absolute;
@@ -205,7 +205,7 @@ document.addEventListener('DOMContentLoaded', function() {
     form.addEventListener('submit', function(event) {
       let isValid = true;
       
-      // Reset validation states
+
       document.querySelectorAll('.form-control, .form-select').forEach(function(input) {
         input.classList.remove('valid', 'invalid');
       });
@@ -213,62 +213,57 @@ document.addEventListener('DOMContentLoaded', function() {
         errorDiv.style.display = 'none';
       });
 
-      // Validate patient name
+  
       const patientName = document.getElementById('Patient_Name');
       if (!patientName.value.trim()) {
         showError(patientName, "Please enter the patient's full name.");
         isValid = false;
       }
 
-      // Validate age
+   
       const age = document.getElementById('Age');
       if (!age.value || age.value < 1 || age.value > 150) {
         showError(age, "Please enter a valid age between 1 and 150.");
         isValid = false;
       }
 
-      // Validate gender
       const gender = document.getElementById('Gender');
       if (!gender.value) {
         showError(gender, "Please select a gender.");
         isValid = false;
       }
 
-      // Validate address
+     
       const address = document.getElementById('Address');
       if (!address.value.trim()) {
         showError(address, "Please enter the patient's address.");
         isValid = false;
       }
 
-      // Validate email
+ 
       const email = document.getElementById('Email_ID');
       if (!email.validity.valid) {
         showError(email, "Please enter a valid email address.");
         isValid = false;
       }
 
-      // Validate personal contact
+     
       const personalContact = document.getElementById('Personal_Contact');
       if (!personalContact.value.match(/^\d{10}$/)) {
         showError(personalContact, "Please enter a valid 10-digit phone number.");
         isValid = false;
       }
 
-      // Validate emergency contact
       const emergencyContact = document.getElementById('Emergency_Contact');
       if (!emergencyContact.value.match(/^\d{10}$/)) {
         showError(emergencyContact, "Please enter a valid 10-digit phone number.");
         isValid = false;
       }
-
-      // Check if contacts are different
       if (personalContact.value === emergencyContact.value) {
         showError(emergencyContact, "Personal contact and emergency contact cannot be the same.");
         isValid = false;
       }
 
-      // Validate doctor selection
       const doctorID = document.getElementById('Doctor_ID');
       if (!doctorID.value) {
         showError(doctorID, "Please select a doctor.");

@@ -766,7 +766,7 @@ def automatic_analysis(patient_id):
 
     
     try:
-        
+        app.logger.info(f"try catch 1")
         record_num = request.form.get("record_num", "").strip()
         if not record_num:
             raise ValueError("ECG record number is required")
@@ -778,7 +778,7 @@ def automatic_analysis(patient_id):
         smoker = 1 if request.form.get("smoker") == "on" else 0
         diabetes = 1 if request.form.get("diabetes") == "on" else 0
 
-       
+        app.logger.info(f"try catch 2")
         if not (0 < age <= 120):
             raise ValueError("Age must be between 1-120 years")
         if not (0 < cholesterol <= 500):
@@ -809,7 +809,7 @@ def automatic_analysis(patient_id):
         # Make prediction (handle model not loaded)
         if model is None:
             raise RuntimeError("ECG analysis model not loaded")
-            
+        app.logger.info(f"try catch 3")
         main_pred, vfib_pred = model.predict(model_input, verbose=0)
         main_pred = main_pred.flatten()
         vfib_prob = vfib_pred.flatten()[0] * 100
@@ -962,17 +962,15 @@ def generate_report(patient_id):
     try:
         verify_directories()
         
-        # Verify required parameters
         required_params = ['predicted_class', 'record_num', 'heart_rate']
         for param in required_params:
             if not request.args.get(param):
                 flash(f"Missing required parameter: {param}", "danger")
                 return redirect(url_for('automatic_analysis', patient_id=patient_id))
 
-        # Get patient data with doctor information
+      
         cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
         try:
-            # First try to get patient with doctor name from join
             cursor.execute("""
                 SELECT p.*, d.Username AS doctor_name, d.Doctor_ID
                 FROM patient_profile p
@@ -985,7 +983,7 @@ def generate_report(patient_id):
                 flash("Patient not found", "danger")
                 return redirect(url_for("input_form"))
             
-            # Get doctor name and ID
+            
             doctor_id = patient.get('Doctor_ID')
             doctor_name = patient.get('doctor_name', "Not assigned")
             
@@ -1019,7 +1017,7 @@ def generate_report(patient_id):
             'doctor_name': doctor_name
         }
 
-        # Process class probabilities
+   
         class_probabilities = {}
         try:
             class_probs = request.args.get('class_probabilities')
@@ -1046,7 +1044,7 @@ def generate_report(patient_id):
         try:
             cursor = mysql.connection.cursor()
             
-            # Convert boolean values to MySQL compatible 1/0
+         
             smoker = 1 if data['smoker'] else 0
             diabetes = 1 if data['diabetes'] else 0
             
@@ -1221,150 +1219,269 @@ def _generate_new_patient_id():
         app.logger.error(f"Failed to generate new Patient ID: {e}", exc_info=True)
         raise RuntimeError("Could not generate Patient ID") from e
 
-def _validate_patient_form(form):
-    
+# --- Validation Function ---
+def _validate_patient_form(form, editing_id=None):
+    """
+    email duplication check:
+    """
     errors = {}
     name = form.get('Patient_Name', '').strip()
     age_str = form.get('Age', '').strip()
     gender = form.get('Gender', '')
     address = form.get('Address', '').strip()
-    email = form.get('Email_ID', '').strip()
+    email = form.get('Email_ID', '').strip().lower()
     phone = form.get('Personal_Contact', '').strip()
     emergency_phone = form.get('Emergency_Contact', '').strip()
     doctor_id = form.get('Doctor_ID', '')
 
-    if not name: errors['Patient_Name'] = "Patient name is required."
-    if not address: errors['Address'] = "Address is required."
-    if not gender: errors['Gender'] = "Please select a gender."
-    if not doctor_id: errors['Doctor_ID'] = "Please assign a doctor."
-    try: 
-        age = int(age_str)
-        if not (0 < age <= 150): raise ValueError()
-    except (ValueError, TypeError): errors['Age'] = "Please enter a valid age (1-150)."
-    if not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', email): errors['Email_ID'] = "Please enter a valid email address." # Email
-    if not re.match(r'^\d{10}$', phone): errors['Personal_Contact'] = "Enter a 10-digit phone number." # Phone
-    if not re.match(r'^\d{10}$', emergency_phone): errors['Emergency_Contact'] = "Enter a 10-digit emergency phone number." # Emergency Phone
-    elif phone and phone == emergency_phone: errors['Emergency_Contact'] = "Emergency contact must differ from personal contact."
-    #
-    if doctor_id and not db_fetch_one("SELECT 1 FROM doctor WHERE Doctor_ID = %s", (doctor_id,)):
-         errors['Doctor_ID'] = "The selected Doctor ID does not exist."
-    app.logger.debug(f"Patient form validation errors: {errors if errors else 'None'}")
+
+    if not name: errors['Patient_Name'] = "Patient name needed."
+    if not address: errors['Address'] = "Address needed."
+    if not gender: errors['Gender'] = "Select a gender."
+    if not doctor_id: errors['Doctor_ID'] = "Assign a doctor."
+    if not age_str: errors['Age'] = "Age is required."
+    if not email: errors['Email_ID'] = "Email is required."
+    if not phone: errors['Personal_Contact'] = "Phone contact needed."
+    if not emergency_phone: errors['Emergency_Contact'] = "Emergency contact needed."
+
+
+    if age_str:
+        try:
+            age = int(age_str)
+            if not (0 < age <= 150):
+                errors['Age'] = "Age should be between 1 and 150."
+        except (ValueError, TypeError): 
+            errors['Age'] = "Age must be a number."
+
+  
+    if email:
+ 
+        email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        if not re.match(email_pattern, email):
+            if 'Email_ID' not in errors: 
+                 errors['Email_ID'] = "Looks like an invalid email format."
+        else:
+            
+            query = "SELECT Patient_ID FROM patient_profile WHERE LOWER(Email_ID) = %s"
+            params = (email,)
+
+            
+            if editing_id:
+                query += " AND Patient_ID != %s"
+                params += (editing_id,)
+
+            try:
+               
+                duplicate = db_fetch_one(query, params)
+                if duplicate:
+                    errors['Email_ID'] = "This email is already used by another patient."
+                    # app.logger.warning(f"Duplicate email found: '{email}' conflicts with PID {duplicate.get('Patient_ID', '?')}")
+            except Exception as e:
+                app.logger.error(f"DB error checking email duplicate: {e}")
+               
+                pass 
+
+    if phone:
+        if not re.match(r'^\d{10}$', phone): 
+            if 'Personal_Contact' not in errors:
+                 errors['Personal_Contact'] = "Phone should be 10 digits."
+
+    if emergency_phone:
+        if not re.match(r'^\d{10}$', emergency_phone):
+             if 'Emergency_Contact' not in errors:
+                  errors['Emergency_Contact'] = "Emergency phone should be 10 digits."
+   
+        elif phone and phone == emergency_phone:
+            if 'Personal_Contact' not in errors and 'Emergency_Contact' not in errors:
+                errors['Emergency_Contact'] = "Emergency contact must be different."
+
+
+    if doctor_id:
+        try:
+   
+            doc = db_fetch_one("SELECT 1 FROM doctor WHERE Doctor_ID = %s", (doctor_id,))
+            if not doc:
+                 if 'Doctor_ID' not in errors:
+                     errors['Doctor_ID'] = "Selected Doctor ID seems invalid."
+        except Exception as e:
+             app.logger.error(f"DB error checking doctor ID: {e}")
+             # errors['Doctor_ID'] = "Server error checking doctor."
+             pass
+
+
+    if errors:
+        app.logger.debug(f"Validation failed (editing ID: {editing_id}): {errors}")
+    else:
+         app.logger.debug(f"Validation OK (editing ID: {editing_id}).")
+
     return errors
 
+
+# --- Patient Registration Route ---
+
 @app.route("/patient_registration", methods=["GET", "POST"])
-@login_required
+@login_required 
 def patient_registration():
-    """Page for staff to register new patients."""
+    
+    
     if current_user.user_type != 'staff':
-        flash("Access restricted to staff members.", "warning")
+        flash("Not allowed! Staff only.", "warning")
         return redirect(url_for('staff_login'))
 
-    patient = None 
+    patient_details = None 
     errors = {}
-    form_data = request.form if request.method == 'POST' else {}
-    doctors = db_fetch_all("SELECT Doctor_ID, Username FROM doctor ORDER BY Username")
+    form_data = request.form if request.method == 'POST' else {} 
+    doctors_list = [] 
+    try:
+        
+        doctors_list = db_fetch_all("SELECT Doctor_ID, Username FROM doctor ORDER BY Username")
+    except Exception as e:
+         app.logger.error(f"Error getting doctors list: {e}")
+         flash("Couldn't load doctor list.", "danger")
 
+ 
     if request.method == "POST":
-        errors = _validate_patient_form(request.form)
-        if not errors:
+   
+        errors = _validate_patient_form(request.form, editing_id=None)
+
+        if not errors: #
             try:
-                new_patient_id = _generate_new_patient_id()
                
-                created_at_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                sql_insert = """
+                new_id = _generate_new_patient_id()
+                ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                sql = """
                     INSERT INTO patient_profile
                            (Patient_ID, Patient_Name, Age, Gender, Address, Email_ID, Personal_Contact,
                             Emergency_Contact, Doctor_ID, Created_At, Staff_Username)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """
-                params = (
-                    new_patient_id, request.form['Patient_Name'].strip(), int(request.form['Age']),
-                    request.form['Gender'], request.form['Address'].strip(), request.form['Email_ID'].strip(),
+             
+                data_tuple = (
+                    new_id, request.form['Patient_Name'].strip(), int(request.form['Age']),
+                    request.form['Gender'], request.form['Address'].strip(),
+                    request.form['Email_ID'].strip().lower(), # Store lowercase
                     request.form['Personal_Contact'].strip(), request.form['Emergency_Contact'].strip(),
-                    request.form['Doctor_ID'], created_at_str, 
+                    request.form['Doctor_ID'], ts,
                     current_user.username 
                 )
-                db_execute(sql_insert, params, commit=True)
-                flash(f"Patient '{request.form['Patient_Name']}' registered! ID: {new_patient_id}", "success")
-                app.logger.info(f"Patient {new_patient_id} registered by staff {current_user.id}")
+                
+                db_execute(sql, data_tuple, commit=True)
+
+                flash(f"Patient '{request.form['Patient_Name']}' registered OK! ID: {new_id}", "success")
+                app.logger.info(f"Patient {new_id} added by staff {current_user.id} ({current_user.username})")
+
                
-                patient = db_fetch_one("SELECT * FROM patient_profile WHERE Patient_ID = %s", (new_patient_id,))
-                form_data = {} 
+                patient_details = db_fetch_one("SELECT * FROM patient_profile WHERE Patient_ID = %s", (new_id,))
+                form_data = {}
 
             except Exception as e:
-                app.logger.error(f"Patient registration failed: {e}", exc_info=True)
-                flash("An error occurred during registration.", "danger")
-                
-        else:
-            flash("Please correct the indicated errors.", "warning")
-           
+                app.logger.error(f"DB error saving new patient: {e}", exc_info=True)
+                flash("Error saving patient to database!", "danger")
+                form_data = request.form # Keep submitted data on DB error
 
+        else: 
+            flash("Please fix the errors shown below.", "warning")
+            form_data = request.form # Keep submitted data in form
+
+    
+    # Needs patient (if just added), errors, form data, doctors list
     return render_template("patient_registration.html",
-                           patient=patient, errors=errors, form_data=form_data, doctors=doctors)
+                           patient=patient_details,
+                           errors=errors,
+                           form_data=form_data,
+                           doctors=doctors_list)
 
+
+# --- Edit Patient Route ---
 
 @app.route("/edit_patient/<patient_id>", methods=["GET", "POST"])
-@login_required
+@login_required 
 def edit_patient(patient_id):
     """Page for staff to edit existing patient details."""
+    
     if current_user.user_type != 'staff':
-         flash("Access restricted to staff members.", "warning")
+         flash("Not allowed! Staff only.", "warning")
          return redirect(url_for('staff_login'))
 
     errors = {}
-    doctors = db_fetch_all("SELECT Doctor_ID, Username FROM doctor ORDER BY Username")
-    form_data_to_render = None 
+    doctors_list = [] 
+    try:
+       
+        doctors_list = db_fetch_all("SELECT Doctor_ID, Username FROM doctor ORDER BY Username")
+    except Exception as e:
+         app.logger.error(f"Error getting doctors list for edit page: {e}")
+         flash("Couldn't load doctor list.", "danger")
+
+
+    data_for_form = None
 
     if request.method == "POST":
-        errors = _validate_patient_form(request.form)
-        if not errors:
+      
+        errors = _validate_patient_form(request.form, editing_id=patient_id)
+
+        if not errors: 
             try:
-                
-                sql_update = """
+               
+                sql = """
                     UPDATE patient_profile SET
                         Patient_Name = %s, Age = %s, Gender = %s, Address = %s, Email_ID = %s,
                         Personal_Contact = %s, Emergency_Contact = %s, Doctor_ID = %s
                     WHERE Patient_ID = %s
                 """
-                params = (
+               
+                data_tuple = (
                     request.form['Patient_Name'].strip(), int(request.form['Age']),
-                    request.form['Gender'], request.form['Address'].strip(), request.form['Email_ID'].strip(),
+                    request.form['Gender'], request.form['Address'].strip(),
+                    request.form['Email_ID'].strip().lower(), # Store lowercase
                     request.form['Personal_Contact'].strip(), request.form['Emergency_Contact'].strip(),
-                    request.form['Doctor_ID'], patient_id
+                    request.form['Doctor_ID'],
+                    patient_id 
                 )
-                db_execute(sql_update, params, commit=True)
-                app.logger.info(f"Patient {patient_id} updated by staff {current_user.id}")
+             
+                db_execute(sql, data_tuple, commit=True)
+
+                app.logger.info(f"Patient {patient_id} updated by staff {current_user.id} ({current_user.username})")
+                flash("Patient info updated.", "success")
+
+        
+                # NOTE: Redirecting back to edit page is better UX:
+                # return redirect(url_for('edit_patient', patient_id=patient_id))
                 return redirect(url_for('patient_registration'))
+
             except Exception as e:
-                 app.logger.error(f"Failed to update patient {patient_id}: {e}", exc_info=True)
-                 flash("Error updating patient details.", "danger")
+                 app.logger.error(f"DB error updating patient {patient_id}: {e}", exc_info=True)
+                 flash("Error saving changes to database!", "danger")
                 
-                 form_data_to_render = request.form
+                 data_for_form = request.form
         else:
-            flash("Please correct the indicated errors.", "warning")
+            flash("Please fix the errors shown below.", "warning")
            
-            form_data_to_render = request.form
+            data_for_form = request.form
 
    
-    if form_data_to_render is None:
-        patient_data_from_db = db_fetch_one("SELECT * FROM patient_profile WHERE Patient_ID = %s", (patient_id,))
-        if not patient_data_from_db:
-            flash(f"Patient {patient_id} not found.", "danger")
-            return redirect(url_for('patient_registration'))
-        form_data_to_render = patient_data_from_db 
+    if data_for_form is None: 
+        try:
+          
+            db_data = db_fetch_one("SELECT * FROM patient_profile WHERE Patient_ID = %s", (patient_id,))
+            if not db_data:
+                flash(f"Patient {patient_id} not found.", "danger")
+                return redirect(url_for('patient_registration')) 
+            data_for_form = db_data 
+        except Exception as e:
+            app.logger.error(f"Error fetching patient {patient_id} for edit: {e}")
+            flash("Error loading patient data.", "danger")
+            return redirect(url_for('patient_registration')) 
 
     
-    patient_for_template = dict(form_data_to_render) 
-    
-    patient_for_template['Patient_ID'] = patient_id
+    patient_data_for_template = dict(data_for_form)
+    patient_data_for_template['Patient_ID'] = patient_id 
 
+    
     return render_template("edit_patient.html",
-                           patient=patient_for_template, 
-                           form_data=form_data_to_render, 
+                           patient=patient_data_for_template, 
                            patient_id=patient_id,
                            errors=errors,
-                           doctors=doctors)
-
+                           doctors=doctors_list) 
 
 # --- Utility Routes ---
 @app.route("/debug")

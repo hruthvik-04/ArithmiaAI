@@ -56,11 +56,11 @@
                             </div>
                             <div class="mb-2">
                                 <strong>Registered by:</strong> 
-                                {# Check if patient exists AND has a non-empty Staff_Username #}
+                                
                                 {% if patient and patient['Staff_Username'] %} 
-                                    {{ patient['Staff_Username'] }} {# <-- Display Staff_Username #}
+                                    {{ patient['Staff_Username'] }} 
                                 {% else %}
-                                    {# Staff_Username is None or empty string, or patient is None #}
+                                    
                                     Not available 
                                 {% endif %}
                             </div>

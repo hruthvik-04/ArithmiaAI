@@ -207,7 +207,7 @@
                                     <select name="record_num" class="form-select" required>
                                         <option value="">Select a record...</option>
                                         
-                                        {% for i in [100, 103, 105, 111, 124, 200, 205,207] %}
+                                        {% for i in [100, 103, 105, 111,112, 124, 200, 205,207] %}
                                         <option value="{{ i }}" {% if request.form.get('record_num') == i|string %}selected{% endif %}>
                                             Record {{ i }}
                                         </option>
@@ -258,7 +258,7 @@
                                 </button>
                             </form>
 
-                            <!-- ECG Waveform Display -->
+                            
                             {% if ecg_graph_json %}
                             <div class="mt-4">
                                 <h5>ECG Waveform</h5>
@@ -274,7 +274,7 @@
     </div>
 </div>
 
-<!-- Loading Overlay -->
+
 <div id="loadingModal" class="loading-overlay" style="display: none;">
     <div class="loading-title">AI-Based ECG Analysis In Progress</div>
     <div class="progress-container">

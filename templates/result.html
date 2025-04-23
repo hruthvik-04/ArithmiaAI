@@ -355,9 +355,9 @@
 
 <div class="container">
     <div class="clearfix">
-        <!-- Left Column (Patient Card + Buttons) -->
+        
         <div style="float: left; width: 300px; margin-right: 20px;">
-            <!-- Patient Details Card -->
+            
             <div class="patient-card">
                 <div class="patient-header">
                     <h2>Patient Information</h2>
@@ -400,7 +400,7 @@
                 </div>
             </div>
 
-            <!-- Action Buttons -->
+            
             <div class="action-buttons-container">
                 <button onclick="generateReport()" class="button btn-primary" id="reportBtn">
                     <i class="fas fa-file-pdf"></i> 
@@ -413,16 +413,16 @@
             </div>
         </div>
 
-        <!-- Right Column (Results) -->
+        
         <div class="results-section">
-            <!-- Analysis Results -->
+            
             <div class="result-card">
                 <h2 class="section-title">Analysis Results</h2>
                 <div class="result-display">
                     {{ predicted_class }} ({{ "%.2f"|format(confidence) }}% confidence)
                 </div>
                 <div class="risk-metrics">
-                    <!-- Framingham Risk Card -->
+                    
                     <div class="score-card framingham">
                         <div class="score-header">
                             <h3>Framingham Risk</h3>
@@ -446,7 +446,7 @@
                         </div>
                     </div>
                     
-                    <!-- GRACE Score Card -->
+                    
                     <div class="score-card grace">
                         <div class="score-header">
                             <h3>GRACE Score</h3>
@@ -469,7 +469,7 @@
                             {% endif %}
                         </div>
                     </div>
-                    <!-- Other Metrics -->
+                    
                     <div class="metric-card">
                         <span class="metric-label">Heart Rate</span>
                         <span class="metric-value">
@@ -497,7 +497,7 @@
                 </div>
             </div>
 
-            <!-- Classification Probabilities -->
+            
             <div class="classification-section">
                 <h2 class="section-title">Classification Probabilities</h2>
                 <div class="classification-grid">
@@ -518,7 +518,7 @@
         </div>
     </div>
 
-    <!-- ECG Visualization Card (Full Width Below) -->
+    
     <div class="waveform-card">
         <h2>ECG - {% if all_beats_count %}{{ all_beats_count }}{% else %}0{% endif %} Beats Detected</h2>
         <div class="stats-display">
@@ -535,11 +535,11 @@
     </div>
 
     <form id="reportForm" action="{{ url_for('generate_report', patient_id=patient.Patient_ID) }}" method="GET">
-        <!-- Simple values -->
+        
         <input type="hidden" name="record_num" value="{{ record_num }}">
         <input type="hidden" name="predicted_class" value="{{ predicted_class }}">
         
-        <!-- Convert float32 values to strings with proper formatting -->
+        
         <input type="hidden" name="confidence" value="{{ '%0.2f'|format(confidence|float) }}">
         <input type="hidden" name="heart_rate" value="{{ '%0.2f'|format(heart_rate|float) }}">
         <input type="hidden" name="qt_interval" value="{{ '%0.3f'|format(qt_interval|float) }}">
@@ -547,7 +547,7 @@
         <input type="hidden" name="framingham_risk" value="{{ '%0.2f'|format(framingham_risk|float) }}">
         <input type="hidden" name="grace_score" value="{{ '%0.2f'|format(grace_score|float) }}">
         
-        <!-- Other values -->
+        
         <input type="hidden" name="systolic_bp" value="{{ systolic_bp }}">
         <input type="hidden" name="cholesterol" value="{{ cholesterol }}">
         <input type="hidden" name="hdl" value="{{ hdl }}">
@@ -555,7 +555,7 @@
         <input type="hidden" name="diabetes" value="{{ '1' if diabetes else '0' }}">
         <input type="hidden" name="all_beats_count" value="{{ all_beats_count }}">
         
-        <!-- Handle class_probabilities with JSON serialization -->
+        
         {% set prob_dict = {} %}
         {% for class_id, info in class_probabilities.items() %}
             {% set _ = prob_dict.update({
