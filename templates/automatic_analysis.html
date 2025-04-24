@@ -207,7 +207,7 @@
                                     <select name="record_num" class="form-select" required>
                                         <option value="">Select a record...</option>
                                         
-                                        {% for i in [100, 103, 105, 111,112, 124, 200, 205,207] %}
+                                        {% for i in [100, 103, 105, 111,112, 124, 205] %}
                                         <option value="{{ i }}" {% if request.form.get('record_num') == i|string %}selected{% endif %}>
                                             Record {{ i }}
                                         </option>
