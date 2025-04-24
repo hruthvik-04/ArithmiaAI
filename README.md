@@ -391,4 +391,4 @@ Distributed under the MIT License. See `LICENSE` file for more information.
 Hruthvik - [hruthvik2K3@gmail.com](mailto:hruthvik2K3@gmail.com)
 
 
-Project Link: [https://github.com/hruthvik-04/ArithmiaAI.git](https://github.com/hruthvik-04/ArithmiaAI.git)
+Project Link: [https://github.com/hruthvik-04/ArrhythmAI.git](https://github.com/hruthvik-04/ArrhythmAI.git)
