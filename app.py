@@ -457,7 +457,6 @@ def generate_ecg_waveform_plot_json(record_num, samples_to_show, patient_id, ecg
         time_axis = np.linspace(0, samples_to_show / fs, samples_to_show, endpoint=False)
 
         # --- Refine R-Peak Locations ---
-        # (Keep the peak refinement logic exactly as in the previous version)
         refined_visible_peaks_indices = []
         if r_peaks_full is not None and len(r_peaks_full) > 0:
            
@@ -665,7 +664,7 @@ def input_form():
                 if patient:
                     
                     app.logger.info(f"Patient data fetched for {patient_id}: {patient}") 
-                    app.logger.info(f"Value in Staff_Username column: {patient.get('Staff_Username')}") # Use .get for safety
+                    app.logger.info(f"Value in Staff_Username column: {patient.get('Staff_Username')}") 
 
                     # Fetch medical history entries for this patient
                     sql_history = "SELECT * FROM input WHERE Patient_ID = %s ORDER BY Generated_AT DESC"
@@ -887,7 +886,7 @@ def automatic_analysis(patient_id):
     except ValueError as ve:
         flash(f"Input validation error: {str(ve)}", "warning")
         app.logger.warning(f"Input validation failed for patient {patient_id}: {str(ve)}")
-    except RuntimeError as runtime_err:  # Changed from 're' to 'runtime_err'
+    except RuntimeError as runtime_err: 
         flash(f"System error: {str(runtime_err)}", "danger")
         app.logger.error(f"System error during analysis for {patient_id}: {str(runtime_err)}", exc_info=True)
     except Exception as e:
@@ -897,7 +896,6 @@ def automatic_analysis(patient_id):
     return redirect(url_for("automatic_analysis", patient_id=patient_id))
 
 # --- Report Generation Route ---
-# Applying previous fixes for JSON parameter encoding
 @app.route('/save_ecg_image', methods=['POST'])
 @login_required
 def save_ecg_image():
@@ -928,7 +926,7 @@ def save_ecg_image():
 
         
         try:
-            # Handle data URI format if present
+            # Handle data URI format 
             img_data_str = data['image_data']
             img_data = img_data_str.split('base64,')[1] if 'base64,' in img_data_str else img_data_str
 
@@ -936,11 +934,11 @@ def save_ecg_image():
                 f.write(base64.b64decode(img_data))
 
             app.logger.info(f"ECG Image saved: {filepath}")
-            # Return the URL path using url_for for correctness
+           
             relative_path = url_for('static', filename=f'ecg_images/{filename}')
             return jsonify({
                 'success': True,
-                'path': relative_path # Return the URL path
+                'path': relative_path 
             })
 
         except (TypeError, ValueError) as decode_err:
