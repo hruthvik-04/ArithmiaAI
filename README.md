@@ -1,4 +1,9 @@
-# ArithmiaAI
+<p align="center">
+  <img src="static/logo.jpg" alt="ArithmiaAI Logo" width="200"/><br><br>
+  
+</p>
+
+
 
 
 A deep learning-powered analysis for automated ECG interpretation and cardiovascular risk prediction.
@@ -316,7 +321,12 @@ mysql -u root -p < schema_setup.sql
         ```
     *   **Set a strong `app.secret_key`:** This is vital for session security. Replace the default value. You can generate one using `python -c 'import os; print(os.urandom(24).hex())'`.
     *   Verify `DATASET_PATH`, `MODEL_PATH`, and other paths if you've placed files differently. *(Consider using environment variables for configuration in production)*.
-
+  
+      
+Install GTK 64 BIT WINDOWS EXE From this  link below for report genertion
+```
+https://github.com/tschoonj/GTK-for-Windows-Runtime-Environment-Installer/releases
+```
 ---
 
 ## Running the Application
@@ -351,10 +361,7 @@ mysql -u root -p < schema_setup.sql
 ---
 
 ## PDF Report Generation
-Install GTK 64 BIT WINDOWS EXE From this  link below for report genertion
-```
-https://github.com/tschoonj/GTK-for-Windows-Runtime-Environment-Installer/releases
-```
+
 *   The application can generate PDF reports of the analysis results.
 *   This feature requires either `xhtml2pdf` (fallback) or `WeasyPrint` (preferred, better results but more complex installation with system dependencies) to be installed.
 *   If neither library is found, PDF download buttons may be disabled, and a warning will be logged at startup.
