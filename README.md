@@ -351,7 +351,10 @@ mysql -u root -p < schema_setup.sql
 ---
 
 ## PDF Report Generation
-
+Install GTK 64 BIT WINDOWS EXE From this  link below for report genertion
+```
+https://github.com/tschoonj/GTK-for-Windows-Runtime-Environment-Installer/releases
+```
 *   The application can generate PDF reports of the analysis results.
 *   This feature requires either `xhtml2pdf` (fallback) or `WeasyPrint` (preferred, better results but more complex installation with system dependencies) to be installed.
 *   If neither library is found, PDF download buttons may be disabled, and a warning will be logged at startup.
